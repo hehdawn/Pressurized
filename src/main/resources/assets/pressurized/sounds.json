@@ -1,0 +1,31 @@
+{
+  "hurt.barotrauma": {
+    "category": "hostile",
+    "subtitle": "Barotrauma",
+    "sounds": [
+      "pressurized:barotrauma"
+    ]
+  },
+
+  "hurt.crush": {
+    "category": "hostile",
+    "subtitle": "Crush",
+    "sounds": [
+      "pressurized:crunch"
+    ]
+  },
+
+  "hull.damage": {
+    "subtitle": "Hull Damage",
+    "sounds": [
+      "pressurized:hulldamage1"
+    ]
+  },
+
+  "environment.damage": {
+    "subtitle": "Environment Damage",
+    "sounds": [
+      "pressurized:hulldamage1"
+    ]
+  }
+}
