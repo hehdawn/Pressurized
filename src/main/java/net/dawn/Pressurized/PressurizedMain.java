@@ -1,8 +1,14 @@
 package net.dawn.Pressurized;
 
-//NOTICE: do NOT use == operator on BlockPos with another BlockPos, USE .equals INSTEAD.
+//code may not be perfect, as i am not too familiar with minecraft modding... but that does not bother me at the moment.
 
-//NOTICE: Ship blocks have 2 different positions.
+//NOTICE1: do NOT use == operator on BlockPos with another BlockPos, USE .equals INSTEAD.
+
+//NOTICE2: Pressure damage and Crush damage are not the same source.
+//Pressure: occurs when ascending/descending too fast.
+//Crush: occurs when the Entity is at a great depth.
+
+//NOTICE2: Ship blocks have 2 different positions.
 
 //Position 1: Shipyard position.
 //this position is static, which is important as it can be used as the key to the ship block.
@@ -10,8 +16,6 @@ package net.dawn.Pressurized;
 
 //Position 2: World position.
 //this position is dynamic, which is important to be aware of since it constantly changes and cannot act as a key to a ship block.
-
-//code may not be perfect, as i am not too familiar with minecraft modding... but that does not bother me at the moment.
 
 import com.mojang.logging.LogUtils;
 import net.dawn.Pressurized.Client.ClientConfigs;
@@ -39,7 +43,6 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.LogicalSide;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -578,8 +581,6 @@ public class PressurizedMain {
 
                 if (ValidHelmet & ValidChestPlate & ValidLeggings & ValidBoots) {
                     PressureImmunity = true;
-
-                    //not exactly sure why i set CrushDepth to -400 here when PressureImmunity is already on
                     CrushDepth = -400 * CommonConfigs.CrushDepthMultiplier.get();
                 } else {
                     PressureImmunity = false;
