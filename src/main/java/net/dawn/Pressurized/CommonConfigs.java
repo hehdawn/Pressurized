@@ -51,12 +51,12 @@ public class CommonConfigs {
         BootsRequired = BUILDER.define("Requires Boots", false);
 
         PressureDamage = BUILDER.define("Diving damage", true);
-        ResurfaceDamage = BUILDER.define("Resurfacing damage", false);
+        ResurfaceDamage = BUILDER.define("Resurfacing damage", true);
 
         CrushDepthMultiplier = BUILDER.define("Crush Depth Multiplier", (double) 1);
         BlockScanRate = BUILDER.define("Block Scan After X Server Ticks", 5);
         BlockScanRadius = BUILDER.define("Block Scan Radius", 16);
-        MaxBlocksDestructionCapacity = BUILDER.define("Max amount of blocks to be stored for breaking", 100);
+        MaxBlocksDestructionCapacity = BUILDER.define("Max amount of blocks to be stored for breaking by water pressure", 100);
 
         BUILDER.pop();
         SPEC = BUILDER.build();

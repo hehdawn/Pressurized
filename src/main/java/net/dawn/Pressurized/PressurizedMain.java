@@ -11,7 +11,7 @@ package net.dawn.Pressurized;
 //Position 2: World position.
 //this position is dynamic, which is important to be aware of since it constantly changes and cannot act as a key to a ship block.
 
-//code may not be perfect... but that does not bother me at the moment.
+//code may not be perfect, as i am not too familiar with minecraft modding... but that does not bother me at the moment.
 
 import com.mojang.logging.LogUtils;
 import net.dawn.Pressurized.Client.ClientConfigs;
@@ -589,13 +589,13 @@ public class PressurizedMain {
                 if (!CrushImmunity & Depth <= CrushDepth || !PressureImmunity & (Depth - BodyPressure <= -5 & CommonConfigs.PressureDamage.get() || Depth - BodyPressure >= 5 & CommonConfigs.ResurfaceDamage.get())) {
                     OverPressured = true;
                     if (Player.hurtTime <= 0) {
-                        if (Depth - BodyPressure < 0 & Player.isDescending()) { // damage when descending too fast
+                        if (Depth - BodyPressure < 0 & Player.getDeltaMovement().y < -.15) {// damage when descending too fast
                             Minecraft.getInstance().getSoundManager().stop(ModSounds.BAROTRAUMA.getId(), SoundSource.AMBIENT);
                             Player.level().playLocalSound(Player.getX(), Player.getY(), Player.getZ(), ModSounds.BAROTRAUMA.get(), SoundSource.AMBIENT, (float) (1f * (Math.abs(Depth - BodyPressure))), 1f, false);
                             if (Player.isAlive()) {
                                 Networking.CHANNEL1.sendToServer(new BaroDamagePlayerPacket(2));
                             }
-                        } else if (Depth - BodyPressure > 0) { // this is probably for damaging when ascending too fast (doesnt work tho atm, womp.)
+                        } else if (Depth - BodyPressure > 0  & Player.getDeltaMovement().y > .15) {// damage when ascending too fast
                             Minecraft.getInstance().getSoundManager().stop(ModSounds.BAROTRAUMA.getId(), SoundSource.AMBIENT);
                             Player.level().playLocalSound(Player.getX(), Player.getY(), Player.getZ(), ModSounds.BAROTRAUMA.get(), SoundSource.AMBIENT, (float) (1f * (Math.abs(Depth - BodyPressure))), 1f, false);
                             if (Player.isAlive()) {
@@ -603,6 +603,7 @@ public class PressurizedMain {
                             }
                         }
                     }
+
                     if (!CrushImmunity & Depth <= CrushDepth) {
                         PressureBuildup += 0.025;
                     }
