@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.dawn.Pressurized.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "Pressurized.refmap.json",
+  "mixins": [
+
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "client": [
+  ]
+}

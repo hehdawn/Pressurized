@@ -127,7 +127,6 @@ public class BlocksResistanceData {
             "crimson_pressure_plate",
             "warped_pressure_plate",
     };
-
     public static final String[] MetalBlocks = {
             "iron_block",
             "gold_block",

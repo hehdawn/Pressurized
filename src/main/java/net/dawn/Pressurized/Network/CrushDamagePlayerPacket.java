@@ -28,7 +28,7 @@ public class CrushDamagePlayerPacket {
         ctx.get().enqueueWork(() -> {
             Player player = ctx.get().getSender();
             assert player != null;
-            System.out.println(player.hurtTime);
+
             if (player.hurtTime <= 0) {
                 player.hurt(PressurizedDamageSource.Crushed, msg.damage);
                 player.indicateDamage(-2,0);

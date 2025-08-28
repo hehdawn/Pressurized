@@ -14,7 +14,6 @@ public class ModSounds {
     public static final RegistryObject<SoundEvent> HULLDAMAGE = registerSoundEvent("hull.damage");
     public static final RegistryObject<SoundEvent> ENVIRONMENTDAMAGE = registerSoundEvent("environment.damage");
 
-
     private static RegistryObject<SoundEvent> registerSoundEvent(String name) {
         return SOUNDS.register(name, () -> SoundEvent.createVariableRangeEvent(ResourceLocation.fromNamespaceAndPath(PressurizedMain.MODID, name)));
     }
