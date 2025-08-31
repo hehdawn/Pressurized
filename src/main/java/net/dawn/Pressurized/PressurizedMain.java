@@ -397,93 +397,95 @@ public class PressurizedMain {
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
 
-            for (Ship ship : VSGameUtilsKt.getAllShips(Minecraft.getInstance().level)) {
-                final ArrayList<ArrayList<BlockPos>> idk = new ArrayList<>();
+            if (ModList.get().isLoaded("valkyrienskies")) {
+                for (Ship ship : VSGameUtilsKt.getAllShips(Minecraft.getInstance().level)) {
+                    final ArrayList<ArrayList<BlockPos>> idk = new ArrayList<>();
 
-                AABBic shipAABB = ship.getShipAABB();
+                    AABBic shipAABB = ship.getShipAABB();
 
-                assert shipAABB != null;
-                int minX = shipAABB.minX();
-                int minY = shipAABB.minY();
-                int minZ = shipAABB.minZ();
-                int maxX = shipAABB.maxX();
-                int maxY = shipAABB.maxY();
-                int maxZ = shipAABB.maxZ();
+                    assert shipAABB != null;
+                    int minX = shipAABB.minX();
+                    int minY = shipAABB.minY();
+                    int minZ = shipAABB.minZ();
+                    int maxX = shipAABB.maxX();
+                    int maxY = shipAABB.maxY();
+                    int maxZ = shipAABB.maxZ();
 
-                final ArrayList<BlockPos> meow = new ArrayList<>();
+                    final ArrayList<BlockPos> meow = new ArrayList<>();
 
-                for (int y = minY; y <= maxY; y++) {
-                    for (int x = minX; x <= maxX; x++) {
-                        for (int z = minZ; z <= maxZ; z++) {
-                            BlockPos currentPos = new BlockPos(x, y, z);
-                            assert Minecraft.getInstance().level != null;
-                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+                    for (int y = minY; y <= maxY; y++) {
+                        for (int x = minX; x <= maxX; x++) {
+                            for (int z = minZ; z <= maxZ; z++) {
+                                BlockPos currentPos = new BlockPos(x, y, z);
+                                assert Minecraft.getInstance().level != null;
+                                BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
 
-                            if (blockState.isAir()) {
-                                meow.add(meow.size(), currentPos);
+                                if (blockState.isAir()) {
+                                    meow.add(meow.size(), currentPos);
+                                }
                             }
                         }
+                        idk.add(y-minY, meow);
                     }
-                    idk.add(y-minY, meow);
-                }
 
-                //final ArrayList<ArrayList<BlockPos>> saaa = new ArrayList<>();
-                //ArrayList<BlockPos> p = new ArrayList<>();
-                for (ArrayList<BlockPos> goog : idk) {
-                    BlockPos Start = null;
-                    BlockPos End = null;
+                    //final ArrayList<ArrayList<BlockPos>> saaa = new ArrayList<>();
+                    //ArrayList<BlockPos> p = new ArrayList<>();
+                    for (ArrayList<BlockPos> goog : idk) {
+                        BlockPos Start = null;
+                        BlockPos End = null;
 
-                    for (BlockPos blockPos : goog) {
-                        assert Minecraft.getInstance().level != null;
+                        for (BlockPos blockPos : goog) {
+                            assert Minecraft.getInstance().level != null;
 
-                        if (Start == null) {
-                            Start = blockPos;
-                        } else if (Start.getX() > blockPos.getX() & Start.getZ() > blockPos.getZ()) {
-                            Start = blockPos;
-                        }
+                            if (Start == null) {
+                                Start = blockPos;
+                            } else if (Start.getX() > blockPos.getX() & Start.getZ() > blockPos.getZ()) {
+                                Start = blockPos;
+                            }
 
-                        if (End == null) {
-                            End = blockPos;
-                        } else if (End.getX() < blockPos.getX() & End.getZ() < blockPos.getZ()) {
-                            Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
-                            Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
+                            if (End == null) {
+                                End = blockPos;
+                            } else if (End.getX() < blockPos.getX() & End.getZ() < blockPos.getZ()) {
+                                Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
+                                Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
 
-                            boolean JA = false;
-                            for (double x = Min.x; x <= Max.x; x++) {
-                                for (double y = Min.y; y <= Max.y; y++) {
-                                    for (double z = Min.z; z <= Max.z; z++) {
-                                        BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
-                                        assert Minecraft.getInstance().level != null;
-                                        BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+                                boolean JA = false;
+                                for (double x = Min.x; x <= Max.x; x++) {
+                                    for (double y = Min.y; y <= Max.y; y++) {
+                                        for (double z = Min.z; z <= Max.z; z++) {
+                                            BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
+                                            assert Minecraft.getInstance().level != null;
+                                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
 
-                                        if (!blockState.isAir()) {
-                                            JA = true;
+                                            if (!blockState.isAir()) {
+                                                JA = true;
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            if (!JA) {
-                                End = blockPos;
+                                if (!JA) {
+                                    End = blockPos;
+                                }
                             }
                         }
+
+                        if (Start == null) {continue;}
+                        BlockPos AirBlockStart = VSCompat.valkShipToWorld(
+                                Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
+                                Start
+                        );
+
+                        BlockPos AirBlockEnd = VSCompat.valkShipToWorld(
+                                Minecraft.getInstance().getSingleplayerServer().overworld(),
+                                End
+                        );
+
+                        Vec3 Min = new Vec3(AirBlockStart.getX(), AirBlockStart.getY()+1, AirBlockStart.getZ());
+                        Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY()+4, AirBlockEnd.getZ());
+
+                        AABB TEST = new AABB(Min, Max);
+                        AirPockets.add(AirPockets.size(), TEST);
                     }
-
-                    if (Start == null) {continue;}
-                    BlockPos AirBlockStart = VSCompat.valkShipToWorld(
-                            Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
-                            Start
-                    );
-
-                    BlockPos AirBlockEnd = VSCompat.valkShipToWorld(
-                            Minecraft.getInstance().getSingleplayerServer().overworld(),
-                            End
-                    );
-
-                    Vec3 Min = new Vec3(AirBlockStart.getX(), AirBlockStart.getY()+1, AirBlockStart.getZ());
-                    Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY()+4, AirBlockEnd.getZ());
-
-                    AABB TEST = new AABB(Min, Max);
-                    AirPockets.add(AirPockets.size(), TEST);
                 }
             }
 
