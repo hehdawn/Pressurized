@@ -1,5 +1,7 @@
 package net.dawn.Pressurized;
 
+//TODO: SERVER-HOSTING EDGECASE: someetimes the player doesnt take Pressure damage nor have any Pressure camera visuals and can be fixed by rejoining.
+
 //code may not be perfect, as i am not too familiar with minecraft modding... but that does not bother me at the moment.
 
 //NOTICE1: do NOT use == operator on BlockPos with another BlockPos, USE .equals INSTEAD.
@@ -32,6 +34,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
@@ -58,8 +61,7 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static net.dawn.Pressurized.BlocksResistanceData.*;
-import static net.dawn.Pressurized.PressurizedMain.ClientModEvents.BodyPressure;
-import static net.dawn.Pressurized.PressurizedMain.ClientModEvents.Depth;
+import static net.dawn.Pressurized.PressurizedMain.ClientModEvents.*;
 
 @Mod(PressurizedMain.MODID)
 public class PressurizedMain {
@@ -74,17 +76,21 @@ public class PressurizedMain {
     static final Map<BlockPos, HashMap<Thread, Boolean>> DestroyThreads = new HashMap<>();
     static final ArrayList<Integer> RemovalCollection = new ArrayList<>();
 
+    public static final ArrayList<AABB> AirPockets = new ArrayList<>();
+
     static int ServerTicks = 0;
 
     public PressurizedMain() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         MinecraftForge.EVENT_BUS.register(this);
 
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, CommonConfigs.SPEC, "pressurized-Common.toml");
+        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ServerConfigs.SPEC, "pressurized-Server.toml");
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfigs.SPEC, "pressurized-Client.toml");
 
         modEventBus.addListener(this::RegisterGui);
+
         modEventBus.addListener(this::clientSetup);
+        //modEventBus.addListener(this::ServerSetup);
 
         Networking.register();
         ModSounds.Register(modEventBus);
@@ -147,6 +153,13 @@ public class PressurizedMain {
     public static double getDepth() {
         return Depth;
     };
+    public static Boolean getPressureImmunity() {
+        return PressureImmunity;
+    };
+
+    public static double getCrushDepth() {
+        return CrushDepth;
+    };
     public static void setDepth(int Value) {
         Depth = Value;
     };
@@ -185,9 +198,9 @@ public class PressurizedMain {
 
             } // adds crush resistance of the blocks below the crushed block (blockPos variable)
 
-            if (BlockDepth * CommonConfigs.CrushDepthMultiplier.get() >= Resistance) {
+            if (BlockDepth * ServerConfigs.CrushDepthMultiplier.get() >= Resistance) {
 
-                if (CrushedBlocks.isEmpty() & CrushedBlocks.size() < CommonConfigs.MaxBlocksDestructionCapacity.get()) {
+                if (CrushedBlocks.isEmpty() & CrushedBlocks.size() < ServerConfigs.MaxBlocksDestructionCapacity.get()) {
                     Map.Entry<BlockPos, Integer> entry = Map.entry(blockPos, 0);
                     CrushedBlocks.put(CrushedBlocks.size()+1, entry);
                     Networking.CHANNEL3.send(PacketDistributor.ALL.noArg(), new UpdateCBArray(CrushedBlocks.size(), blockPos));
@@ -201,7 +214,7 @@ public class PressurizedMain {
                     }
                 }
 
-                if (!found & CrushedBlocks.size() < CommonConfigs.MaxBlocksDestructionCapacity.get()) {
+                if (!found & CrushedBlocks.size() < ServerConfigs.MaxBlocksDestructionCapacity.get()) {
                     Map.Entry<BlockPos, Integer> entry = Map.entry(blockPos, 0);
 
                     CrushedBlocks.put(CrushedBlocks.size()+1, entry);
@@ -218,7 +231,7 @@ public class PressurizedMain {
                     }
                 }
 
-                if (ServerTicks >= CommonConfigs.BlockScanRate.get()) {
+                if (ServerTicks >= ServerConfigs.BlockScanRate.get()) {
                     for (Map.Entry<Integer, Map.Entry<BlockPos, Integer>> BlockMap : CrushedBlocks.entrySet()) {
                         Map.Entry<BlockPos, Integer> entry = BlockMap.getValue();
                         BlockPos key = entry.getKey();
@@ -376,7 +389,7 @@ public class PressurizedMain {
     @SubscribeEvent
     public void OnSTick(TickEvent.ServerTickEvent event) {
         if (!event.phase.equals(TickEvent.Phase.END)) {return;}
-        if (ServerTicks < CommonConfigs.BlockScanRate.get()) {ServerTicks++;return;}
+        if (ServerTicks < ServerConfigs.BlockScanRate.get()) {ServerTicks++;return;}
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
 
@@ -390,7 +403,7 @@ public class PressurizedMain {
                 }
             }
 
-            int radius = CommonConfigs.BlockScanRadius.get();
+            int radius = ServerConfigs.BlockScanRadius.get();
             BlockPos center = player.getOnPos();
             for (int x = -radius; x <= radius; x++) {
                 for (int y = -radius; y <= radius; y++) {
@@ -563,31 +576,47 @@ public class PressurizedMain {
                 String Leggings = Player.getItemBySlot(EquipmentSlot.LEGS).getHoverName().getString();
                 String Boots = Player.getItemBySlot(EquipmentSlot.FEET).getHoverName().getString();
 
-                for (String Gear : CommonConfigs.ValidHelmets.get()) {
-                    ValidHelmet = (Helmet.equals(Gear) || !CommonConfigs.HelmetRequired.get());
+                if (!ServerConfigs.HelmetRequired.get()) {
+                    ValidHelmet = true;
+                } else {
+                    for (String Gear : ServerConfigs.ValidHelmets.get()) {
+                        ValidHelmet = (Helmet.equals(Gear));
+                    }
                 }
 
-                for (String Gear : CommonConfigs.ValidChestPlates.get()) {
-                    ValidChestPlate = (ChestPlate.equals(Gear) || !CommonConfigs.ChestPlateRequired.get());
+                if (!ServerConfigs.ChestPlateRequired.get()) {
+                    ValidChestPlate = true;
+                } else  {
+                    for (String Gear : ServerConfigs.ValidChestPlates.get()) {
+                        ValidChestPlate = (ChestPlate.equals(Gear));
+                    }
                 }
 
-                for (String Gear : CommonConfigs.ValidLeggings.get()) {
-                    ValidLeggings = (Leggings.equals(Gear) || !CommonConfigs.LeggingsRequired.get());
+                if (!ServerConfigs.LeggingsRequired.get()) {
+                    ValidLeggings = true;
+                } else {
+                    for (String Gear : ServerConfigs.ValidLeggings.get()) {
+                        ValidLeggings = (Leggings.equals(Gear));
+                    }
                 }
 
-                for (String Gear : CommonConfigs.ValidBoots.get()) {
-                    ValidBoots = (Boots.equals(Gear) || !CommonConfigs.BootsRequired.get());
+                if (!ServerConfigs.BootsRequired.get()) {
+                    ValidBoots = true;
+                } else {
+                    for (String Gear : ServerConfigs.ValidBoots.get()) {
+                        ValidBoots = (Boots.equals(Gear));
+                    }
                 }
 
                 if (ValidHelmet & ValidChestPlate & ValidLeggings & ValidBoots) {
                     PressureImmunity = true;
-                    CrushDepth = -400 * CommonConfigs.CrushDepthMultiplier.get();
+                    CrushDepth = -400 * ServerConfigs.CrushDepthMultiplier.get();
                 } else {
                     PressureImmunity = false;
-                    CrushDepth = -100 * CommonConfigs.CrushDepthMultiplier.get();
+                    CrushDepth = -100 * ServerConfigs.CrushDepthMultiplier.get();
                 }
 
-                if (!CrushImmunity & Depth <= CrushDepth || !PressureImmunity & (Depth - BodyPressure <= -5 & CommonConfigs.PressureDamage.get() || Depth - BodyPressure >= 5 & CommonConfigs.ResurfaceDamage.get())) {
+                if (!CrushImmunity & Depth <= CrushDepth || !PressureImmunity & (Depth - BodyPressure <= -5 & ServerConfigs.PressureDamage.get() || Depth - BodyPressure >= 5 & ServerConfigs.ResurfaceDamage.get())) {
                     OverPressured = true;
                     if (Player.hurtTime <= 0) {
                         if (Depth - BodyPressure < 0 & Player.getDeltaMovement().y < -.15) {// damage when descending too fast

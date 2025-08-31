@@ -3,7 +3,7 @@ package net.dawn.Pressurized;
 import net.minecraftforge.common.ForgeConfigSpec;
 import java.util.*;
 
-public class CommonConfigs {
+public class ServerConfigs {
     public static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
     public static final ForgeConfigSpec SPEC;
@@ -27,7 +27,7 @@ public class CommonConfigs {
     public static final ForgeConfigSpec.ConfigValue<Integer> MaxBlocksDestructionCapacity;
 
     static {
-        BUILDER.push("Common");
+        BUILDER.push("Server");
 
         ValidHelmets = BUILDER.defineList("Valid Helmets",
                 List.of(),
