@@ -428,8 +428,6 @@ public class PressurizedMain {
                         idk.add(y-minY, meow);
                     }
 
-                    //final ArrayList<ArrayList<BlockPos>> saaa = new ArrayList<>();
-                    //ArrayList<BlockPos> p = new ArrayList<>();
                     for (ArrayList<BlockPos> goog : idk) {
                         BlockPos Start = null;
                         BlockPos End = null;
@@ -437,15 +435,14 @@ public class PressurizedMain {
                         for (BlockPos blockPos : goog) {
                             assert Minecraft.getInstance().level != null;
 
-                            if (Start == null) {
-                                Start = blockPos;
-                            } else if (Start.getX() > blockPos.getX() & Start.getZ() > blockPos.getZ()) {
+                            if (Start == null || Start.getX() > blockPos.getX() || Start.getZ() > blockPos.getZ()) {
                                 Start = blockPos;
                             }
 
                             if (End == null) {
                                 End = blockPos;
-                            } else if (End.getX() < blockPos.getX() & End.getZ() < blockPos.getZ()) {
+                            } else if (End.getX() < blockPos.getX() || End.getZ() < blockPos.getZ()) {
+                                System.out.println("WAGOO WAGOO");
                                 Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
                                 Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
 
@@ -457,12 +454,27 @@ public class PressurizedMain {
                                             assert Minecraft.getInstance().level != null;
                                             BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
 
-                                            if (!blockState.isAir()) {
+                                            if (!blockState.isAir()) { // in short: if theres a block inside the AABB thats not air
                                                 JA = true;
                                             }
                                         }
                                     }
                                 }
+
+                                for (double x = Min.x; x <= Max.x; x++) {
+                                    for (double y = Min.y; y <= Max.y; y++) {
+                                        for (double z = Min.z; z <= Min.z; z++) {
+                                            BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
+                                            assert Minecraft.getInstance().level != null;
+                                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos.south());
+
+                                            if (blockState.isAir()) {
+                                                //JA = false;
+                                            }
+                                        }
+                                    }
+                                }
+
                                 if (!JA) {
                                     End = blockPos;
                                 }
@@ -480,8 +492,11 @@ public class PressurizedMain {
                                 End
                         );
 
-                        Vec3 Min = new Vec3(AirBlockStart.getX(), AirBlockStart.getY()+1, AirBlockStart.getZ());
-                        Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY()+4, AirBlockEnd.getZ());
+                        Vec3 Min = new Vec3(AirBlockStart.getX(), AirBlockStart.getY(), AirBlockStart.getZ());
+                        Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY(), AirBlockEnd.getZ());
+
+                        System.out.println(Min);
+                        System.out.println(Max);
 
                         AABB TEST = new AABB(Min, Max);
                         AirPockets.add(AirPockets.size(), TEST);
