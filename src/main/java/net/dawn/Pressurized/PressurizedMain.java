@@ -446,9 +446,7 @@ public class PressurizedMain {
                         }
 
                         for (BlockPos blockPos : goog) {
-                            if (End == null) {
-                                End = blockPos;
-                            } else if (End.getX() < blockPos.getX() || End.getZ() < blockPos.getZ()) {
+                            if (End == null || End.getX() < blockPos.getX() || End.getZ() < blockPos.getZ()) {
                                 Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
                                 Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
 
@@ -467,15 +465,17 @@ public class PressurizedMain {
                                     }
                                 }
 
+                                //TODO: check the rest of the walls of other directions (duh)
+                                //check if there is a full wall from the north
                                 for (double x = Min.x; x <= Max.x; x++) {
-                                    for (double y = Min.y; y <= Max.y; y++) {
-                                        for (double z = Min.z; z <= Min.z; z++) {
+                                    for (double y = Min.y; y <= Max.y; y++) { // this is not really needed ... because airpockets are first registered with only 1 Y height
+                                        for (double z = Max.z; z <= Max.z; z++) {
                                             BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
                                             assert Minecraft.getInstance().level != null;
-                                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos.south());
-
-                                            if (blockState.isAir()) {
-                                                //JA = false;
+                                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos.north());
+                                            if (!blockState.isSolid()) {
+                                                System.out.println(currentPos.west());
+                                                //JA = true;
                                             }
                                         }
                                     }
@@ -488,6 +488,7 @@ public class PressurizedMain {
                         }
 
                         if (Start == null) {continue;}
+                        if (End == null) {continue;}
 
                         BlockPos AirBlockStart = VSCompat.valkShipToWorld(
                                 Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
