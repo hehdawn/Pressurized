@@ -442,7 +442,6 @@ public class PressurizedMain {
                             if (End == null) {
                                 End = blockPos;
                             } else if (End.getX() < blockPos.getX() || End.getZ() < blockPos.getZ()) {
-                                System.out.println("WAGOO WAGOO");
                                 Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
                                 Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
 
@@ -461,27 +460,13 @@ public class PressurizedMain {
                                     }
                                 }
 
-                                for (double x = Min.x; x <= Max.x; x++) {
-                                    for (double y = Min.y; y <= Max.y; y++) {
-                                        for (double z = Min.z; z <= Min.z; z++) {
-                                            BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
-                                            assert Minecraft.getInstance().level != null;
-                                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos.south());
-
-                                            if (blockState.isAir()) {
-                                                //JA = false;
-                                            }
-                                        }
-                                    }
-                                }
-
                                 if (!JA) {
                                     End = blockPos;
                                 }
                             }
                         }
-
                         if (Start == null) {continue;}
+
                         BlockPos AirBlockStart = VSCompat.valkShipToWorld(
                                 Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
                                 Start
@@ -494,9 +479,6 @@ public class PressurizedMain {
 
                         Vec3 Min = new Vec3(AirBlockStart.getX(), AirBlockStart.getY(), AirBlockStart.getZ());
                         Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY(), AirBlockEnd.getZ());
-
-                        System.out.println(Min);
-                        System.out.println(Max);
 
                         AABB TEST = new AABB(Min, Max);
                         AirPockets.add(AirPockets.size(), TEST);

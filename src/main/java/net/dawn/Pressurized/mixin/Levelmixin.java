@@ -1,5 +1,6 @@
 package net.dawn.Pressurized.mixin;
 
+import net.dawn.Pressurized.PressurizedMain;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.material.FluidState;
@@ -24,20 +25,11 @@ public abstract class Levelmixin {
         if (ModList.get().isLoaded("valkyrienskies")) {
             //currently the mod uses VS ship AABB as an early test for if the Mixin works.
             //the goal is to create an AABB by determining the hull space and if there are any water leaks.
-            final ArrayList<AABB> AirPockets = new ArrayList<>();
-
-            for (Ship ship : VSGameUtilsKt.getAllShips(Minecraft.getInstance().level)) {
-                Vec3 Min = new Vec3(ship.getWorldAABB().minX(), ship.getWorldAABB().minY(), ship.getWorldAABB().minZ());
-                Vec3 Max = new Vec3(ship.getWorldAABB().maxX(), ship.getWorldAABB().maxY(), ship.getWorldAABB().maxZ());
-
-                AABB TEST = new AABB(Min, Max);
-                AirPockets.add(AirPockets.size()+1, TEST);
-            }
 
             Vec3 jomlVector = new Vec3(p_46671_.getX(), p_46671_.getY(), p_46671_.getZ());
 
-            for (AABB tired : AirPockets) {
-                if (Objects.requireNonNull(tired).contains(jomlVector)) {
+            for (int i = PressurizedMain.AirPockets.size() - 1; i >= 0; i--) {
+                if (PressurizedMain.AirPockets.get(i).contains(jomlVector)) {
                     cir.setReturnValue(Fluids.EMPTY.defaultFluidState());
                 }
             }
