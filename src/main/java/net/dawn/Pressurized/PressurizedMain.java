@@ -388,6 +388,10 @@ public class PressurizedMain {
     @SubscribeEvent
     public void PRLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         EntitiesDepth.remove(event.getEntity());
+
+        //if (Minecraft.getInstance().isSingleplayer()) {
+            AirPockets.clear();
+        //}
     }
 
     @SubscribeEvent
@@ -425,7 +429,8 @@ public class PressurizedMain {
                                 }
                             }
                         }
-                        idk.add(y-minY, meow);
+                        idk.add(y-minY, (ArrayList<BlockPos>) meow.clone());
+                        meow.clear();
                     }
 
                     for (ArrayList<BlockPos> goog : idk) {
@@ -437,6 +442,7 @@ public class PressurizedMain {
 
                             if (Start == null || Start.getX() > blockPos.getX() || Start.getZ() > blockPos.getZ()) {
                                 Start = blockPos;
+                                //System.out.println(blockPos);
                             }
 
                             if (End == null) {
@@ -492,7 +498,7 @@ public class PressurizedMain {
                         );
 
                         Vec3 Min = new Vec3(AirBlockStart.getX(), AirBlockStart.getY(), AirBlockStart.getZ());
-                        Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY()+4, AirBlockEnd.getZ());
+                        Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY(), AirBlockEnd.getZ());
 
                         AABB TEST = new AABB(Min, Max);
 
@@ -795,8 +801,6 @@ public class PressurizedMain {
                 ValidChestPlate = false;
                 ValidLeggings = false;
                 ValidBoots = false;
-
-                AirPockets.clear();
             }
         }
 
