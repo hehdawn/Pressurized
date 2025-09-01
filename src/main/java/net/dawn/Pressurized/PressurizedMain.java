@@ -460,6 +460,20 @@ public class PressurizedMain {
                                     }
                                 }
 
+                                for (double x = Min.x; x <= Max.x; x++) {
+                                    for (double y = Min.y; y <= Max.y; y++) {
+                                        for (double z = Min.z; z <= Min.z; z++) {
+                                            BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
+                                            assert Minecraft.getInstance().level != null;
+                                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos.south());
+
+                                            if (blockState.isAir()) {
+                                                //JA = false;
+                                            }
+                                        }
+                                    }
+                                }
+
                                 if (!JA) {
                                     End = blockPos;
                                 }
@@ -478,9 +492,25 @@ public class PressurizedMain {
                         );
 
                         Vec3 Min = new Vec3(AirBlockStart.getX(), AirBlockStart.getY(), AirBlockStart.getZ());
-                        Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY(), AirBlockEnd.getZ());
+                        Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY()+4, AirBlockEnd.getZ());
 
                         AABB TEST = new AABB(Min, Max);
+
+                        double minX1 = TEST.minX;
+                        double minY1 = TEST.minY;
+                        double minZ1= TEST.minZ;
+                        double maxX1 = TEST.maxX;
+                        double maxY1 = TEST.maxY;
+                        double maxZ1 = TEST.maxZ;
+
+                        for (double x = minX1; x <= maxX1; x++) {
+                            for (double y = minY1; y <= maxY1; y++) {
+                                for (double z = minZ1; z <= maxZ1; z++) {
+                                    BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
+                                    goog.remove(currentPos);
+                                }
+                            }
+                        }
                         AirPockets.add(AirPockets.size(), TEST);
                     }
                 }
@@ -765,6 +795,8 @@ public class PressurizedMain {
                 ValidChestPlate = false;
                 ValidLeggings = false;
                 ValidBoots = false;
+
+                AirPockets.clear();
             }
         }
 

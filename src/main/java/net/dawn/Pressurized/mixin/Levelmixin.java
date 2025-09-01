@@ -33,7 +33,7 @@ public abstract class Levelmixin {
                     cir.setReturnValue(Fluids.EMPTY.defaultFluidState());
                 }
             }
-            //AirPockets.clear();
+            //PressurizedMain.AirPockets.clear();
         }
     }
 }
