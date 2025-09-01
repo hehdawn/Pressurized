@@ -497,8 +497,17 @@ public class PressurizedMain {
                                 End
                         );
 
-                        Vec3 Min = new Vec3(AirBlockStart.getX(), AirBlockStart.getY(), AirBlockStart.getZ());
-                        Vec3 Max = new Vec3(AirBlockEnd.getX(), AirBlockEnd.getY(), AirBlockEnd.getZ());
+                        Vec3 Min = new Vec3(
+                                AirBlockStart.getX(),
+                                AirBlockStart.getY()-1,
+                                AirBlockStart.getZ()
+                        );
+
+                        Vec3 Max = new Vec3(
+                                AirBlockEnd.getX(),
+                                AirBlockEnd.getY(),
+                                AirBlockEnd.getZ()
+                        );
 
                         AABB TEST = new AABB(Min, Max);
 
@@ -517,7 +526,7 @@ public class PressurizedMain {
                                 }
                             }
                         }
-                        AirPockets.add(AirPockets.size(), TEST);
+                        AirPockets.add(AirPockets.size(), TEST); // obvious memory leak
                     }
                 }
             }
