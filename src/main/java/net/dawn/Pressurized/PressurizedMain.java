@@ -401,7 +401,7 @@ public class PressurizedMain {
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
 
-            if (ModList.get().isLoaded("valkyrienskies")) {
+            if (ModList.get().isLoaded("valkyrienskies")) { // code currently doesnt support mutiple air pockets of the same Y position level, womp.
                 for (Ship ship : VSGameUtilsKt.getAllShips(Minecraft.getInstance().level)) {
                     final ArrayList<ArrayList<BlockPos>> idk = new ArrayList<>();
 
@@ -434,17 +434,18 @@ public class PressurizedMain {
                     }
 
                     for (ArrayList<BlockPos> goog : idk) {
+                        assert Minecraft.getInstance().level != null;
+
                         BlockPos Start = null;
                         BlockPos End = null;
 
                         for (BlockPos blockPos : goog) {
-                            assert Minecraft.getInstance().level != null;
-
                             if (Start == null || Start.getX() > blockPos.getX() || Start.getZ() > blockPos.getZ()) {
                                 Start = blockPos;
-                                //System.out.println(blockPos);
                             }
+                        }
 
+                        for (BlockPos blockPos : goog) {
                             if (End == null) {
                                 End = blockPos;
                             } else if (End.getX() < blockPos.getX() || End.getZ() < blockPos.getZ()) {
@@ -485,6 +486,7 @@ public class PressurizedMain {
                                 }
                             }
                         }
+
                         if (Start == null) {continue;}
 
                         BlockPos AirBlockStart = VSCompat.valkShipToWorld(
@@ -499,7 +501,7 @@ public class PressurizedMain {
 
                         Vec3 Min = new Vec3(
                                 AirBlockStart.getX(),
-                                AirBlockStart.getY()-1,
+                                AirBlockStart.getY()-1, //necessary offset.
                                 AirBlockStart.getZ()
                         );
 
@@ -528,6 +530,7 @@ public class PressurizedMain {
                         }
                         AirPockets.add(AirPockets.size(), TEST); // obvious memory leak
                     }
+                    idk.clear();
                 }
             }
 
