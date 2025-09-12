@@ -25,6 +25,8 @@ import net.dawn.Pressurized.Client.PressurizedHudOverlay;
 import net.dawn.Pressurized.Network.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
+import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
@@ -58,6 +60,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Math;
 import org.joml.primitives.AABBic;
 import org.slf4j.Logger;
+import org.stringtemplate.v4.ST;
 import org.valkyrienskies.core.api.ships.Ship;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
@@ -390,9 +393,172 @@ public class PressurizedMain {
         EntitiesDepth.remove(event.getEntity());
 
         //if (Minecraft.getInstance().isSingleplayer()) {
-            AirPockets.clear();
+            AirPockets.clear(); //TODO: remove this later
+        Wagoo = false; //TODO: remove this later
         //}
     }
+
+    private ArrayList<BlockPos> ProcessSmth(ArrayList<BlockPos> idk, ServerPlayer player, AABBic bruh) {
+        assert Minecraft.getInstance().level != null;
+        BlockPos Start = null;
+        BlockPos End = null;
+        ArrayList<BlockPos> erm = new ArrayList<>();
+
+        for (BlockPos blockPos : idk) {
+            if (!player.serverLevel().getBlockState(blockPos).isAir()) {continue;}
+
+            if (player.serverLevel().getBlockState(blockPos.north()).isAir()) {continue;}
+            if (player.serverLevel().getBlockState(blockPos.west()).isAir()) {continue;}
+
+            if (Start == null || (Start.getX()+Start.getZ()) > (blockPos.getX()+blockPos.getZ())) {
+                Start = blockPos;
+            }
+        }
+
+        if (Start == null) {return idk;}
+
+        for (BlockPos blockPos : idk) {
+            if (!player.serverLevel().getBlockState(blockPos).isAir()) {continue;}
+
+            if (player.serverLevel().getBlockState(blockPos.south()).isAir()) {continue;}
+            if (player.serverLevel().getBlockState(blockPos.east()).isAir()) {continue;}
+
+            if (End == null || (End.getX()+Start.getZ()) < (blockPos.getX()+blockPos.getZ())) {
+                Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
+                Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
+
+                boolean JA = false;
+                for (double x = Min.x; x <= Max.x; x++) {
+                    for (double y = Min.y; y <= Max.y; y++) {
+                        for (double z = Min.z; z <= Max.z; z++) {
+                            BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
+                            assert Minecraft.getInstance().level != null;
+                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+
+                            erm.add(currentPos);
+
+                            if (!blockState.isAir()) { // in short: if theres a block inside the AABB thats not air
+                                JA = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                //TODO: check the rest of the walls of other directions (duh)
+                //check if there is a full wall from the north
+                //                for (double x = Min.x; x <= Max.x; x++) {
+                //                    BlockPos currentPos = new BlockPos((int) x, Start.getY(), Start.getZ()).north();
+                //                    BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+                //
+                //                    if (!blockState.isSolid()) {
+                //                        JA = true;
+                //                    }
+                //                }
+                //                for (double z = Min.z; z <= Max.z; z++) {
+                //                    BlockPos currentPos = new BlockPos(Start.getX(), Start.getY(), (int) z).west();
+                //                    BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+                //
+                //                    if (!blockState.isSolid()) {
+                //                        JA = true;
+                //                    }
+                //                }
+                //
+                //                for (double x = Min.x; x <= Max.x; x++) {
+                //                    BlockPos currentPos = new BlockPos((int) x, blockPos.getY(), blockPos.getZ()).south();
+                //                    BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+                //
+                //                    if (!blockState.isSolid()) {
+                //                        JA = true;
+                //                    }
+                //                }
+                //                for (double z = Min.z; z <= Max.z; z++) {
+                //                    BlockPos currentPos = new BlockPos(blockPos.getX(), blockPos.getY(), (int) z).east();
+                //                    BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+                //
+                //                    if (!blockState.isSolid()) {
+                //                        JA = true;
+                //                    }
+                //                }
+
+                if (!JA) {
+                    erm.clear();
+                    End = blockPos;
+                }
+            }
+        }
+
+        if (End == null) {return idk;}
+
+        BlockPos AirBlockStart = VSCompat.valkShipToWorld(
+                Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
+                Start
+        );
+
+        BlockPos AirBlockEnd = VSCompat.valkShipToWorld(
+                Minecraft.getInstance().getSingleplayerServer().overworld(),
+                End
+        );
+
+        //        player.serverLevel().setBlock(
+        //                AirBlockStart,
+        //                Blocks.OBSIDIAN.defaultBlockState(),
+        //                3
+        //        );
+        //        player.serverLevel().setBlock(
+        //                AirBlockEnd,
+        //                Blocks.OBSIDIAN.defaultBlockState(),
+        //                3
+        //        );
+
+        Vec3 Min = new Vec3(
+                AirBlockStart.getX()-.5,
+                AirBlockStart.getY()-2, //necessary offset...?
+                AirBlockStart.getZ()-.5
+        );
+
+        Vec3 Max = new Vec3(
+                AirBlockEnd.getX()+.5,
+                AirBlockEnd.getY()+1,
+                AirBlockEnd.getZ()+.5
+        );
+
+        AABB AirPocket = new AABB(Min, Max);
+
+        //        double minX1 = AirPocket.minX;
+        //        double minY1 = AirPocket.minY;
+        //        double minZ1 = AirPocket.minZ;
+        //        double maxX1 = AirPocket.maxX;
+        //        double maxY1 = AirPocket.maxY;
+        //        double maxZ1 = AirPocket.maxZ;
+        //
+        //        for (double x = minX1; x <= maxX1; x++) {
+        //            for (double y = minY1; y <= maxY1; y++) {
+        //                for (double z = minZ1; z <= maxZ1; z++) {
+        //                    idk.remove(new BlockPos((int) x, (int) y, (int) z));
+        //                }
+        //            }
+        //        }
+        //for (BlockPos goog : idk) {
+        //    for  (BlockPos icant : erm) {
+        //        if (goog.equals(icant)) {
+        //            idk.remove(goog);
+        //        }
+        //    }
+        //}
+
+        System.out.println(Min);
+        System.out.println(Max);
+        System.out.println(AirPocket);
+        System.out.println("TEST4");
+
+        AirPockets.add(AirPockets.size(), AirPocket); // obvious memory leak
+
+        idk.clear(); // shouldnt be doing this but am testing
+        return idk;
+    }
+
+    boolean Wagoo = false;
 
     @SubscribeEvent
     public void OnSTick(TickEvent.ServerTickEvent event) {
@@ -400,8 +566,8 @@ public class PressurizedMain {
         if (ServerTicks < ServerConfigs.BlockScanRate.get()) {ServerTicks++;return;}
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
-
-            if (ModList.get().isLoaded("valkyrienskies")) { // code currently doesnt support mutiple air pockets of the same Y position level, womp.
+            if (ModList.get().isLoaded("valkyrienskies") && !Wagoo) { // code currently doesnt support mutiple air pockets of the same Y position level, womp.
+                Wagoo = true;
                 for (Ship ship : VSGameUtilsKt.getAllShips(Minecraft.getInstance().level)) {
                     final ArrayList<ArrayList<BlockPos>> idk = new ArrayList<>();
 
@@ -424,7 +590,7 @@ public class PressurizedMain {
                                 assert Minecraft.getInstance().level != null;
                                 BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
 
-                                if (blockState.isAir()) {
+                                if (blockState.isAir()) { //NOTE: there could be an issue where isAir returns true despite there being a solid block because it checks too early while the solid block is not registered.
                                     meow.add(meow.size(), currentPos);
                                 }
                             }
@@ -433,105 +599,129 @@ public class PressurizedMain {
                         meow.clear();
                     }
 
-                    for (ArrayList<BlockPos> goog : idk) {
-                        assert Minecraft.getInstance().level != null;
-
-                        BlockPos Start = null;
-                        BlockPos End = null;
-
-                        for (BlockPos blockPos : goog) {
-                            if (Start == null || Start.getX() > blockPos.getX() || Start.getZ() > blockPos.getZ()) {
-                                Start = blockPos;
-                            }
+                    System.out.println(idk.size());
+                    for (int i = idk.size() - 1; i >= 0; i--) {
+                        if (i > 0 && !idk.get(i - 1).isEmpty()) {
+                            i -= 1;
                         }
-
-                        for (BlockPos blockPos : goog) {
-                            if (End == null || End.getX() < blockPos.getX() || End.getZ() < blockPos.getZ()) {
-                                Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
-                                Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
-
-                                boolean JA = false;
-                                for (double x = Min.x; x <= Max.x; x++) {
-                                    for (double y = Min.y; y <= Max.y; y++) {
-                                        for (double z = Min.z; z <= Max.z; z++) {
-                                            BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
-                                            assert Minecraft.getInstance().level != null;
-                                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-
-                                            if (!blockState.isAir()) { // in short: if theres a block inside the AABB thats not air
-                                                JA = true;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                //TODO: check the rest of the walls of other directions (duh)
-                                //check if there is a full wall from the north
-                                for (double x = Min.x; x <= Max.x; x++) {
-                                    for (double y = Min.y; y <= Max.y; y++) { // this is not really needed ... because airpockets are first registered with only 1 Y height
-                                        for (double z = Max.z; z <= Max.z; z++) {
-                                            BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
-                                            assert Minecraft.getInstance().level != null;
-                                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos.north());
-                                            if (!blockState.isSolid()) {
-                                                System.out.println(currentPos.west());
-                                                //JA = true;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                if (!JA) {
-                                    End = blockPos;
-                                }
-                            }
-                        }
-
-                        if (Start == null) {continue;}
-                        if (End == null) {continue;}
-
-                        BlockPos AirBlockStart = VSCompat.valkShipToWorld(
-                                Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
-                                Start
-                        );
-
-                        BlockPos AirBlockEnd = VSCompat.valkShipToWorld(
-                                Minecraft.getInstance().getSingleplayerServer().overworld(),
-                                End
-                        );
-
-                        Vec3 Min = new Vec3(
-                                AirBlockStart.getX(),
-                                AirBlockStart.getY()-1, //necessary offset.
-                                AirBlockStart.getZ()
-                        );
-
-                        Vec3 Max = new Vec3(
-                                AirBlockEnd.getX(),
-                                AirBlockEnd.getY(),
-                                AirBlockEnd.getZ()
-                        );
-
-                        AABB TEST = new AABB(Min, Max);
-
-                        double minX1 = TEST.minX;
-                        double minY1 = TEST.minY;
-                        double minZ1= TEST.minZ;
-                        double maxX1 = TEST.maxX;
-                        double maxY1 = TEST.maxY;
-                        double maxZ1 = TEST.maxZ;
-
-                        for (double x = minX1; x <= maxX1; x++) {
-                            for (double y = minY1; y <= maxY1; y++) {
-                                for (double z = minZ1; z <= maxZ1; z++) {
-                                    BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
-                                    goog.remove(currentPos);
-                                }
-                            }
-                        }
-                        AirPockets.add(AirPockets.size(), TEST); // obvious memory leak
+                        ArrayList<BlockPos> naming_things_is_stupid = ProcessSmth(idk.get(i), player, shipAABB); //building airpockets start
+                        idk.get(i).clear();
+                        //idk.get(i).addAll(naming_things_is_stupid);
                     }
                     idk.clear();
+
+                    {
+                        for (ArrayList<BlockPos> goog : idk) {
+                            if (true) {continue;}
+                            assert Minecraft.getInstance().level != null;
+
+                            BlockPos Start = null;
+                            BlockPos End = null;
+
+                            for (BlockPos blockPos : goog) {
+                                if (Start == null || Start.getX() > blockPos.getX() || Start.getZ() > blockPos.getZ()) {
+                                    Start = blockPos;
+                                }
+                            }
+
+                            for (BlockPos blockPos : goog) {
+                                if (End == null || End.getX() < blockPos.getX() || End.getZ() < blockPos.getZ()) {
+                                    Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
+                                    Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
+
+                                    boolean JA = false;
+                                    for (double x = Min.x; x <= Max.x; x++) {
+                                        for (double y = Min.y; y <= Max.y; y++) {
+                                            for (double z = Min.z; z <= Max.z; z++) {
+                                                BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
+                                                assert Minecraft.getInstance().level != null;
+                                                BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+
+                                                if (!blockState.isAir()) { // in short: if theres a block inside the AABB thats not air
+                                                    JA = true;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    //TODO: check the rest of the walls of other directions (duh)
+                                    //check if there is a full wall from the north
+                                    for (double x = Min.x; x <= Max.x; x++) {
+
+                                        BlockPos currentPos = new BlockPos((int) x, blockPos.getY(), blockPos.getZ()).west();
+                                        BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+
+                                        if (!blockState.isSolid()) {
+                                            if (currentPos.getY() == 49+80) {
+                                                System.out.println(
+                                                        VSCompat.valkShipToWorld(
+                                                                player.serverLevel().getLevel(),
+                                                                currentPos
+                                                        )
+                                                );
+                                                System.out.println(currentPos);
+                                                System.out.println(blockState);
+                                            }
+
+                                            JA = true;
+                                        }
+                                    }
+
+                                    if (!JA) {
+                                        End = blockPos;
+                                    }
+                                }
+                            }
+
+                            if (Start == null) {continue;}
+                            if (End == null) {continue;}
+
+                            BlockPos AirBlockStart = VSCompat.valkShipToWorld(
+                                    Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
+                                    Start
+                            );
+
+                            BlockPos AirBlockEnd = VSCompat.valkShipToWorld(
+                                    Minecraft.getInstance().getSingleplayerServer().overworld(),
+                                    End
+                            );
+
+                            //System.out.println(AirBlockStart);
+                            //System.out.println(AirBlockEnd);
+
+                            Vec3 Min = new Vec3(
+                                    AirBlockStart.getX(),
+                                    AirBlockStart.getY()-1, //necessary offset.
+                                    AirBlockStart.getZ()
+                            );
+
+                            Vec3 Max = new Vec3(
+                                    AirBlockEnd.getX(),
+                                    AirBlockEnd.getY(),
+                                    AirBlockEnd.getZ()
+                            );
+
+                            AABB TEST = new AABB(Min, Max);
+
+                            double minX1 = TEST.minX;
+                            double minY1 = TEST.minY;
+                            double minZ1= TEST.minZ;
+                            double maxX1 = TEST.maxX;
+                            double maxY1 = TEST.maxY;
+                            double maxZ1 = TEST.maxZ;
+
+                            for (double x = minX1; x <= maxX1; x++) {
+                                for (double y = minY1; y <= maxY1; y++) {
+                                    for (double z = minZ1; z <= maxZ1; z++) {
+                                        BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
+                                        goog.remove(currentPos);
+                                    }
+                                }
+                            }
+                            AirPockets.add(AirPockets.size(), TEST); // obvious memory leak
+                        }
+                        idk.clear();
+                    } //buildin airpockets end
                 }
             }
 
