@@ -19,17 +19,24 @@ package net.dawn.Pressurized;
 //Position 2: World position.
 //this position is dynamic, which is important to be aware of since it constantly changes and cannot act as a key to a ship block.
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.*;
 import com.mojang.logging.LogUtils;
 import net.dawn.Pressurized.Client.ClientConfigs;
 import net.dawn.Pressurized.Client.PressurizedHudOverlay;
 import net.dawn.Pressurized.Network.*;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderStateShard;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.level.ClipContext;
@@ -58,12 +65,15 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Math;
+import org.joml.Vector3f;
 import org.joml.primitives.AABBic;
 import org.slf4j.Logger;
 import org.stringtemplate.v4.ST;
 import org.valkyrienskies.core.api.ships.Ship;
+import org.valkyrienskies.core.impl.shadow.Ai;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
+import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -398,88 +408,78 @@ public class PressurizedMain {
         //}
     }
 
-    private ArrayList<BlockPos> ProcessSmth(ArrayList<BlockPos> idk, ServerPlayer player, AABBic bruh) {
+    private ArrayList<ArrayList<BlockPos>> ProcessSmth(Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> j, ServerPlayer player, BlockPos FixedStart, BlockPos FixedEnd) {
         assert Minecraft.getInstance().level != null;
-        BlockPos Start = null;
-        BlockPos End = null;
+
+        ArrayList<ArrayList<BlockPos>> o = j.getKey();
+        ArrayList<BlockPos> idk = o.get(j.getValue());
+        
+        BlockPos Start = FixedStart;
+        BlockPos End = FixedEnd;
         ArrayList<BlockPos> erm = new ArrayList<>();
 
-        for (BlockPos blockPos : idk) {
-            if (!player.serverLevel().getBlockState(blockPos).isAir()) {continue;}
+        if (FixedStart == null) {
+            int i = 0;
+            while (i < idk.size()) {
+                BlockPos blockPos = idk.get(i);
+                i++;
 
-            if (player.serverLevel().getBlockState(blockPos.north()).isAir()) {continue;}
-            if (player.serverLevel().getBlockState(blockPos.west()).isAir()) {continue;}
+                System.out.println(
+                        VSCompat.valkShipToWorld(player.serverLevel(), blockPos)
+                );
 
-            if (Start == null || (Start.getX()+Start.getZ()) > (blockPos.getX()+blockPos.getZ())) {
-                Start = blockPos;
+                if (!player.serverLevel().getBlockState(blockPos).isAir()) {continue;}
+
+                if (player.serverLevel().getBlockState(blockPos.north()).isAir()) {continue;}
+                if (player.serverLevel().getBlockState(blockPos.west()).isAir()) {continue;}
+
+                if (Start == null || (Start.getX()+Start.getZ()) > (blockPos.getX()+blockPos.getZ())) {
+                    Start = blockPos;
+                }
             }
         }
 
-        if (Start == null) {return idk;}
+        o.set(j.getValue(), new ArrayList<>());
+        if (Start == null) {return o;}
 
-        for (BlockPos blockPos : idk) {
+        int i = 0;
+        while (i < idk.size()) {
+            BlockPos blockPos = idk.get(i);
+            i++;
+
             if (!player.serverLevel().getBlockState(blockPos).isAir()) {continue;}
 
-            if (player.serverLevel().getBlockState(blockPos.south()).isAir()) {continue;}
-            if (player.serverLevel().getBlockState(blockPos.east()).isAir()) {continue;}
+            if (FixedStart == null) {
+                if (player.serverLevel().getBlockState(blockPos.south()).isAir()) {continue;}
+                if (player.serverLevel().getBlockState(blockPos.east()).isAir()) {continue;}
+            }
 
             if (End == null || (End.getX()+Start.getZ()) < (blockPos.getX()+blockPos.getZ())) {
                 Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
                 Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
 
                 boolean JA = false;
-                for (double x = Min.x; x <= Max.x; x++) {
-                    for (double y = Min.y; y <= Max.y; y++) {
-                        for (double z = Min.z; z <= Max.z; z++) {
+                for (double x = Min.x; x < Max.x; x++) {
+                    for (double y = Min.y; y < Max.y; y++) {
+                        for (double z = Min.z; z < Max.z; z++) {
                             BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
                             assert Minecraft.getInstance().level != null;
                             BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-
                             erm.add(currentPos);
 
-                            if (!blockState.isAir()) { // in short: if theres a block inside the AABB thats not air
+                            if (!blockState.isAir()) { //if there's a block inside the AABB that's not air
+                                if (FixedStart == null) {
+                                    o.set(j.getValue(), erm);
+                                    Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> entry = Map.entry(o, i);
+
+                                    ProcessSmth(entry, player, Start, null);
+                                }
                                 JA = true;
                                 break;
                             }
                         }
                     }
                 }
-
-                //TODO: check the rest of the walls of other directions (duh)
-                //check if there is a full wall from the north
-                //                for (double x = Min.x; x <= Max.x; x++) {
-                //                    BlockPos currentPos = new BlockPos((int) x, Start.getY(), Start.getZ()).north();
-                //                    BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-                //
-                //                    if (!blockState.isSolid()) {
-                //                        JA = true;
-                //                    }
-                //                }
-                //                for (double z = Min.z; z <= Max.z; z++) {
-                //                    BlockPos currentPos = new BlockPos(Start.getX(), Start.getY(), (int) z).west();
-                //                    BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-                //
-                //                    if (!blockState.isSolid()) {
-                //                        JA = true;
-                //                    }
-                //                }
-                //
-                //                for (double x = Min.x; x <= Max.x; x++) {
-                //                    BlockPos currentPos = new BlockPos((int) x, blockPos.getY(), blockPos.getZ()).south();
-                //                    BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-                //
-                //                    if (!blockState.isSolid()) {
-                //                        JA = true;
-                //                    }
-                //                }
-                //                for (double z = Min.z; z <= Max.z; z++) {
-                //                    BlockPos currentPos = new BlockPos(blockPos.getX(), blockPos.getY(), (int) z).east();
-                //                    BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-                //
-                //                    if (!blockState.isSolid()) {
-                //                        JA = true;
-                //                    }
-                //                }
 
                 if (!JA) {
                     erm.clear();
@@ -488,39 +488,61 @@ public class PressurizedMain {
             }
         }
 
-        if (End == null) {return idk;}
+        o.set(j.getValue(), new ArrayList<>());
+        if (End == null) {return o;}
 
-        BlockPos AirBlockStart = VSCompat.valkShipToWorld(
+        {//removing this code results in a 1 layer of AirPocket that doesn't take considerations for inner walls
+            BlockPos AboveStart = Start.above();
+            BlockPos AboveEnd = End.above();
+
+            boolean A = !player.serverLevel().getBlockState(AboveStart.north()).isAir();
+            boolean B = !player.serverLevel().getBlockState(AboveStart.west()).isAir();
+
+            if (FixedStart != null) {
+                A = true;
+                B = true;
+            }
+
+            boolean C = !player.serverLevel().getBlockState(AboveEnd.south()).isAir();
+            boolean D = !player.serverLevel().getBlockState(AboveEnd.east()).isAir();
+
+            while (A && B && C && D) {
+                End = AboveEnd;
+
+                AboveStart = AboveStart.above();
+                AboveEnd = AboveEnd.above();
+
+                A = !player.serverLevel().getBlockState(AboveStart.north()).isAir();
+                B = !player.serverLevel().getBlockState(AboveStart.west()).isAir();
+
+                C = !player.serverLevel().getBlockState(AboveEnd.south()).isAir();
+                D = !player.serverLevel().getBlockState(AboveEnd.east()).isAir();
+            }
+        }
+
+        Vec3 AirBlockStart = VSCompat.TEST(
                 Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
                 Start
         );
 
-        BlockPos AirBlockEnd = VSCompat.valkShipToWorld(
+        Vec3 AirBlockEnd = VSCompat.TEST(
                 Minecraft.getInstance().getSingleplayerServer().overworld(),
                 End
         );
 
-        //        player.serverLevel().setBlock(
-        //                AirBlockStart,
-        //                Blocks.OBSIDIAN.defaultBlockState(),
-        //                3
-        //        );
-        //        player.serverLevel().setBlock(
-        //                AirBlockEnd,
-        //                Blocks.OBSIDIAN.defaultBlockState(),
-        //                3
-        //        );
+        //        Vec3 AirBlockStart = Start.getCenter();
+        //        Vec3 AirBlockEnd = End.getCenter();
 
         Vec3 Min = new Vec3(
-                AirBlockStart.getX()-.5,
-                AirBlockStart.getY()-2, //necessary offset...?
-                AirBlockStart.getZ()-.5
+                AirBlockStart.x()-.5,
+                AirBlockStart.y()-.5,
+                AirBlockStart.z()-.5
         );
 
         Vec3 Max = new Vec3(
-                AirBlockEnd.getX()+.5,
-                AirBlockEnd.getY()+1,
-                AirBlockEnd.getZ()+.5
+                AirBlockEnd.x()+.5,
+                AirBlockEnd.y()+.5,
+                AirBlockEnd.z()+.5
         );
 
         AABB AirPocket = new AABB(Min, Max);
@@ -547,187 +569,77 @@ public class PressurizedMain {
         //    }
         //}
 
-        System.out.println(Min);
-        System.out.println(Max);
         System.out.println(AirPocket);
-        System.out.println("TEST4");
 
         AirPockets.add(AirPockets.size(), AirPocket); // obvious memory leak
 
         idk.clear(); // shouldnt be doing this but am testing
-        return idk;
+        return new ArrayList<>();
     }
 
     boolean Wagoo = false;
+    int DELAY = 0;
 
     @SubscribeEvent
     public void OnSTick(TickEvent.ServerTickEvent event) {
         if (!event.phase.equals(TickEvent.Phase.END)) {return;}
         if (ServerTicks < ServerConfigs.BlockScanRate.get()) {ServerTicks++;return;}
+        DELAY++;
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
-            if (ModList.get().isLoaded("valkyrienskies") && !Wagoo) { // code currently doesnt support mutiple air pockets of the same Y position level, womp.
-                Wagoo = true;
+            if (ModList.get().isLoaded("valkyrienskies") && !Wagoo && DELAY >= 20) {
+                PressurizedMain.AirPockets.clear();
+                //Wagoo = true;
+
                 for (Ship ship : VSGameUtilsKt.getAllShips(Minecraft.getInstance().level)) {
-                    final ArrayList<ArrayList<BlockPos>> idk = new ArrayList<>();
+                    ArrayList<ArrayList<BlockPos>> idk = new ArrayList<>();
 
                     AABBic shipAABB = ship.getShipAABB();
-
                     assert shipAABB != null;
-                    int minX = shipAABB.minX();
-                    int minY = shipAABB.minY();
-                    int minZ = shipAABB.minZ();
-                    int maxX = shipAABB.maxX();
-                    int maxY = shipAABB.maxY();
-                    int maxZ = shipAABB.maxZ();
 
-                    final ArrayList<BlockPos> meow = new ArrayList<>();
+                    for (int y = shipAABB.minY(); y < shipAABB.maxY(); y++) {
+                        final ArrayList<BlockPos> meow = new ArrayList<>();
 
-                    for (int y = minY; y <= maxY; y++) {
-                        for (int x = minX; x <= maxX; x++) {
-                            for (int z = minZ; z <= maxZ; z++) {
+                        for (int x = shipAABB.minX(); x < shipAABB.maxX(); x++) {
+                            for (int z = shipAABB.minZ(); z < shipAABB.maxZ(); z++) {
+
                                 BlockPos currentPos = new BlockPos(x, y, z);
-                                assert Minecraft.getInstance().level != null;
-                                BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+                                BlockState blockState = player.serverLevel().getBlockState(currentPos);
 
                                 if (blockState.isAir()) { //NOTE: there could be an issue where isAir returns true despite there being a solid block because it checks too early while the solid block is not registered.
-                                    meow.add(meow.size(), currentPos);
+                                    meow.add(currentPos);
                                 }
                             }
                         }
-                        idk.add(y-minY, (ArrayList<BlockPos>) meow.clone());
-                        meow.clear();
+                        idk.add(meow);
                     }
 
-                    System.out.println(idk.size());
-                    for (int i = idk.size() - 1; i >= 0; i--) {
-                        if (i > 0 && !idk.get(i - 1).isEmpty()) {
-                            i -= 1;
+                    int i = 0;
+                    while (i < idk.size()) {
+                        Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> entry = Map.entry(idk, i);
+                        idk = ProcessSmth(
+                                entry,
+                                player,
+                                null,
+                                null
+                        ); //building airpockets
+
+                        try {
+                            if (idk.get(i).isEmpty()) {
+                                i++;
+                            }
+                        } catch (IndexOutOfBoundsException e) {
+                            System.out.println("BLYAAAAAT");
                         }
-                        ArrayList<BlockPos> naming_things_is_stupid = ProcessSmth(idk.get(i), player, shipAABB); //building airpockets start
-                        idk.get(i).clear();
-                        //idk.get(i).addAll(naming_things_is_stupid);
                     }
                     idk.clear();
-
-                    {
-                        for (ArrayList<BlockPos> goog : idk) {
-                            if (true) {continue;}
-                            assert Minecraft.getInstance().level != null;
-
-                            BlockPos Start = null;
-                            BlockPos End = null;
-
-                            for (BlockPos blockPos : goog) {
-                                if (Start == null || Start.getX() > blockPos.getX() || Start.getZ() > blockPos.getZ()) {
-                                    Start = blockPos;
-                                }
-                            }
-
-                            for (BlockPos blockPos : goog) {
-                                if (End == null || End.getX() < blockPos.getX() || End.getZ() < blockPos.getZ()) {
-                                    Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
-                                    Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
-
-                                    boolean JA = false;
-                                    for (double x = Min.x; x <= Max.x; x++) {
-                                        for (double y = Min.y; y <= Max.y; y++) {
-                                            for (double z = Min.z; z <= Max.z; z++) {
-                                                BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
-                                                assert Minecraft.getInstance().level != null;
-                                                BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-
-                                                if (!blockState.isAir()) { // in short: if theres a block inside the AABB thats not air
-                                                    JA = true;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    //TODO: check the rest of the walls of other directions (duh)
-                                    //check if there is a full wall from the north
-                                    for (double x = Min.x; x <= Max.x; x++) {
-
-                                        BlockPos currentPos = new BlockPos((int) x, blockPos.getY(), blockPos.getZ()).west();
-                                        BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-
-                                        if (!blockState.isSolid()) {
-                                            if (currentPos.getY() == 49+80) {
-                                                System.out.println(
-                                                        VSCompat.valkShipToWorld(
-                                                                player.serverLevel().getLevel(),
-                                                                currentPos
-                                                        )
-                                                );
-                                                System.out.println(currentPos);
-                                                System.out.println(blockState);
-                                            }
-
-                                            JA = true;
-                                        }
-                                    }
-
-                                    if (!JA) {
-                                        End = blockPos;
-                                    }
-                                }
-                            }
-
-                            if (Start == null) {continue;}
-                            if (End == null) {continue;}
-
-                            BlockPos AirBlockStart = VSCompat.valkShipToWorld(
-                                    Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
-                                    Start
-                            );
-
-                            BlockPos AirBlockEnd = VSCompat.valkShipToWorld(
-                                    Minecraft.getInstance().getSingleplayerServer().overworld(),
-                                    End
-                            );
-
-                            //System.out.println(AirBlockStart);
-                            //System.out.println(AirBlockEnd);
-
-                            Vec3 Min = new Vec3(
-                                    AirBlockStart.getX(),
-                                    AirBlockStart.getY()-1, //necessary offset.
-                                    AirBlockStart.getZ()
-                            );
-
-                            Vec3 Max = new Vec3(
-                                    AirBlockEnd.getX(),
-                                    AirBlockEnd.getY(),
-                                    AirBlockEnd.getZ()
-                            );
-
-                            AABB TEST = new AABB(Min, Max);
-
-                            double minX1 = TEST.minX;
-                            double minY1 = TEST.minY;
-                            double minZ1= TEST.minZ;
-                            double maxX1 = TEST.maxX;
-                            double maxY1 = TEST.maxY;
-                            double maxZ1 = TEST.maxZ;
-
-                            for (double x = minX1; x <= maxX1; x++) {
-                                for (double y = minY1; y <= maxY1; y++) {
-                                    for (double z = minZ1; z <= maxZ1; z++) {
-                                        BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
-                                        goog.remove(currentPos);
-                                    }
-                                }
-                            }
-                            AirPockets.add(AirPockets.size(), TEST); // obvious memory leak
-                        }
-                        idk.clear();
-                    } //buildin airpockets end
-                }
+                } //stop iterating through VS ships
+                System.out.println(AirPockets);
             }
 
             //NOTICE: the reason why were getting the Depth on the server instead of client is because valk skies
             //VSGameUtilsKt.getShipObjectManagingPos needs ServerLevel
-            for (Map.Entry<net.minecraft.world.entity.Entity, Integer> Entry : EntitiesDepth.entrySet()) {
+            for (Map.Entry<Entity, Integer> Entry : EntitiesDepth.entrySet()) {
                 if (player.getId() == Entry.getKey().getId()) {
                     int Depth = EntityDepth(player.getOnPos(), player.serverLevel());
                     Entry.setValue((int) (Entry.getKey().getY() - Depth));
@@ -797,6 +709,38 @@ public class PressurizedMain {
         //because last time i tried handling it on the server using level.destroyBlockProgress, the client rendered it a bit inconsistently...
         @SubscribeEvent
         public static void OnRLSEvent(RenderLevelStageEvent event) {
+            if (Minecraft.getInstance().player == null || event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
+                return;
+            }
+
+            { //Airpockets highlight debugger start
+                Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+
+                PoseStack poseStack = event.getPoseStack();
+                poseStack.pushPose();
+                poseStack.translate(-camera.x, -camera.y, -camera.z);
+
+                MultiBufferSource.BufferSource bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder());
+
+                VertexConsumer consumer = bufferSource.getBuffer(RenderType.lines());
+
+                RenderSystem.setShader(GameRenderer::getPositionColorShader);
+
+                try {
+                    for (int i = PressurizedMain.AirPockets.size() - 1; i >= 0; i--) {
+                        Debugger.renderLineBox(
+                                poseStack,
+                                consumer,
+                                PressurizedMain.AirPockets.get(i) //TODO java.lang.IndexOutOfBoundsException: Index 3 out of bounds for length 0
+                        );
+                    }
+                } finally {
+                    bufferSource.endBatch(RenderType.lines());
+                }
+
+                poseStack.popPose();
+            }//Airpockets highlight debugger end
+
             for (Map.Entry<Integer, Map.Entry<BlockPos, Integer>> BlockMap : PressurizedMain.CrushedBlocks.entrySet()) {
                 event.getLevelRenderer().destroyBlockProgress(BlockMap.getKey(), BlockMap.getValue().getKey(), BlockMap.getValue().getValue());
                 //NOTICE: First parameter of destroyBlockProgress is for the id of the entity, this may result in issues.

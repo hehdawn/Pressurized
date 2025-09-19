@@ -5,7 +5,10 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "Pressurized.refmap.json",
   "mixins": [
-    "Levelmixin"
+    "Entitymixin",
+    "Levelmixin",
+    "LivingEntityAccessor",
+    "LivingEntitymixin"
   ],
   "injectors": {
     "defaultRequire": 1
