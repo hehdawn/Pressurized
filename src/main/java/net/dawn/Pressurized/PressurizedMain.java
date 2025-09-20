@@ -409,7 +409,6 @@ public class PressurizedMain {
     }
 
     private ArrayList<ArrayList<BlockPos>> ProcessSmth(Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> j, ServerPlayer player, BlockPos FixedStart, BlockPos FixedEnd) {
-        assert Minecraft.getInstance().level != null;
 
         ArrayList<ArrayList<BlockPos>> o = j.getKey();
         ArrayList<BlockPos> idk = o.get(j.getValue());
@@ -423,10 +422,6 @@ public class PressurizedMain {
             while (i < idk.size()) {
                 BlockPos blockPos = idk.get(i);
                 i++;
-
-                System.out.println(
-                        VSCompat.valkShipToWorld(player.serverLevel(), blockPos)
-                );
 
                 if (!player.serverLevel().getBlockState(blockPos).isAir()) {continue;}
 
@@ -460,27 +455,42 @@ public class PressurizedMain {
 
                 boolean JA = false;
                 for (double x = Min.x; x < Max.x; x++) {
-                    for (double y = Min.y; y < Max.y; y++) {
-                        for (double z = Min.z; z < Max.z; z++) {
-                            BlockPos currentPos = new BlockPos((int) x, (int) y, (int) z);
-                            assert Minecraft.getInstance().level != null;
-                            BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-                            erm.add(currentPos);
+                    for (double z = Min.z; z < Max.z; z++) {
+                        BlockPos currentPos = new BlockPos((int) x, blockPos.getY(), (int) z);
+                        BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
+                        erm.add(currentPos);
 
-                            if (!blockState.isAir()) { //if there's a block inside the AABB that's not air
-                                if (FixedStart == null) {
-                                    o.set(j.getValue(), erm);
-                                    Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> entry = Map.entry(o, i);
+                        if (!blockState.isAir()) { //if there's a block inside the AABB that's not air
 
-                                    ProcessSmth(entry, player, Start, null);
+                            if (FixedStart == null) { // i really need to come up with better naming ngl...
+                                int ij = 0;
+                                ArrayList<BlockPos> n = new ArrayList<>();
+                                while (ij < idk.size()) {
+                                    BlockPos MEOW = idk.get(ij);
+                                    ij++;
+
+                                    boolean g = true;
+                                    for (BlockPos u : erm) {
+                                        if (MEOW.equals(u)) {
+                                            g = false;
+                                            break;
+                                        }
+                                    }
+
+                                    if (g) {
+                                        n.add(MEOW);
+                                    }
                                 }
-                                JA = true;
-                                break;
+                                o.set(j.getValue(), n);
+
+                                Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> entry = Map.entry(o, j.getValue());
+                                ProcessSmth(entry, player, Start, null);
                             }
+                            JA = true;
+                            break;
                         }
                     }
                 }
-
                 if (!JA) {
                     erm.clear();
                     End = blockPos;
@@ -491,22 +501,28 @@ public class PressurizedMain {
         o.set(j.getValue(), new ArrayList<>());
         if (End == null) {return o;}
 
-        {//removing this code results in a 1 layer of AirPocket that doesn't take considerations for inner walls
+        int OMG = j.getValue()+1;
+        {
             BlockPos AboveStart = Start.above();
             BlockPos AboveEnd = End.above();
 
             boolean A = !player.serverLevel().getBlockState(AboveStart.north()).isAir();
             boolean B = !player.serverLevel().getBlockState(AboveStart.west()).isAir();
 
-            if (FixedStart != null) {
-                A = true;
-                B = true;
-            }
-
             boolean C = !player.serverLevel().getBlockState(AboveEnd.south()).isAir();
             boolean D = !player.serverLevel().getBlockState(AboveEnd.east()).isAir();
 
+            if (FixedStart != null) {
+                A = true;
+                B = true;
+                //C = true;
+                //D = true;
+            }
+
             while (A && B && C && D) {
+                o.set(OMG, new ArrayList<>());
+                OMG++;
+
                 End = AboveEnd;
 
                 AboveStart = AboveStart.above();
@@ -574,7 +590,7 @@ public class PressurizedMain {
         AirPockets.add(AirPockets.size(), AirPocket); // obvious memory leak
 
         idk.clear(); // shouldnt be doing this but am testing
-        return new ArrayList<>();
+        return o;
     }
 
     boolean Wagoo = false;
