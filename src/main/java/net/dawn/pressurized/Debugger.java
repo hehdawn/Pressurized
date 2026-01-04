@@ -1,17 +1,17 @@
-package net.dawn.Pressurized;
+package net.dawn.pressurized;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
+import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.AABB;
-import net.minecraftforge.fml.ModList;
 import org.joml.Vector3f;
 
 //cool debugging contents for the mod buh
 
 public class Debugger {
     public static void renderLineBox(PoseStack poseStack, VertexConsumer consumer, AABB box) {
+        box = VSCompat.ShipyardAirpocketToWorld(Minecraft.getInstance().level, box);
+
         float minX = (float) box.minX;
         float minY = (float) box.minY;
         float minZ = (float) box.minZ;
@@ -19,22 +19,6 @@ public class Debugger {
         float maxX = (float) box.maxX;
         float maxY = (float) box.maxY;
         float maxZ = (float) box.maxZ;
-
-        //        if (ModList.get().isLoaded("valkyrienskies")) {
-        //            BlockPos MinShipPos = new BlockPos((int) box.minX, (int) box.minY, (int) box.minZ);
-        //            BlockPos MinWorldPos = VSCompat.valkShipToWorld(serverLevel, MinShipPos);
-        //
-        //            BlockPos MaxShipPos = new BlockPos((int) box.maxX, (int) box.maxY, (int) box.maxZ);
-        //            BlockPos MaxWorldPos = VSCompat.valkShipToWorld(serverLevel, MaxShipPos);
-        //
-        //            minX = (float) MinWorldPos.getX();
-        //            minY = (float) MinWorldPos.getY();
-        //            minZ = (float) MinWorldPos.getZ();
-        //
-        //            maxX = (float) MaxWorldPos.getX();
-        //            maxY = (float) MaxWorldPos.getY();
-        //            maxZ = (float) MaxWorldPos.getZ();
-        //        }
 
         float red = 1.0F;
         float green = 0.0F;

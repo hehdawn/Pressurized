@@ -1,6 +1,6 @@
-package net.dawn.Pressurized.Network;
+package net.dawn.pressurized.Network;
 
-import net.dawn.Pressurized.PressurizedMain;
+import net.dawn.pressurized.PressurizedMain;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;

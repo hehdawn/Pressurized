@@ -1,4 +1,4 @@
-package net.dawn.Pressurized;
+package net.dawn.pressurized;
 
 import net.minecraftforge.common.ForgeConfigSpec;
 import java.util.*;
@@ -20,6 +20,7 @@ public class ServerConfigs {
 
     public static final ForgeConfigSpec.BooleanValue PressureDamage;
     public static final ForgeConfigSpec.BooleanValue ResurfaceDamage;
+    public static final ForgeConfigSpec.BooleanValue Airpockets;
 
     public static final ForgeConfigSpec.ConfigValue<Double> CrushDepthMultiplier;
     public static final ForgeConfigSpec.ConfigValue<Integer> BlockScanRate;
@@ -52,6 +53,7 @@ public class ServerConfigs {
 
         PressureDamage = BUILDER.define("Diving damage", true);
         ResurfaceDamage = BUILDER.define("Resurfacing damage", true);
+        Airpockets = BUILDER.define("Valkyrien Skies Airpockets", true);
 
         CrushDepthMultiplier = BUILDER.define("Crush Depth Multiplier", (double) 1);
         BlockScanRate = BUILDER.define("Block Scan After X Server Ticks", 5);

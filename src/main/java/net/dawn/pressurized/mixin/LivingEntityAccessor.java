@@ -1,7 +1,6 @@
-package net.dawn.Pressurized.mixin;
+package net.dawn.pressurized.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 import net.minecraft.world.entity.LivingEntity;
@@ -10,7 +9,4 @@ import net.minecraft.world.entity.LivingEntity;
 public interface LivingEntityAccessor {
     @Invoker("jumpFromGround") //protected bypass guh
     void invokeJumpFromGround();
-
-    @Accessor("noJumpDelay")
-    void setNoJumpDelay(int value);
 }

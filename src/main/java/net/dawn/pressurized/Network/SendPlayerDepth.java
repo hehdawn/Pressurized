@@ -1,11 +1,9 @@
-package net.dawn.Pressurized.Network;
+package net.dawn.pressurized.Network;
 
-import net.dawn.Pressurized.PressurizedMain;
-import net.minecraft.core.BlockPos;
+import net.dawn.pressurized.PressurizedMain;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.Map;
 import java.util.function.Supplier;
 
 //TODO: add a way to remove an index from Client CrushedBlocks.

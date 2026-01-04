@@ -1,6 +1,6 @@
-package net.dawn.Pressurized.mixin;
+package net.dawn.pressurized.mixin;
 
-import net.dawn.Pressurized.PressurizedMain;
+import net.dawn.pressurized.VSCompat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
@@ -24,37 +24,16 @@ public abstract class Entitymixin {
         return (Entity) (Object) this;
     }
 
-    @Unique
-    public boolean pressurized$AirpocketOverride(ArrayList<Vec3> jomlVectors) {
-        try {
-            for (int i = PressurizedMain.AirPockets.size() - 1; i >= 0; i--) {
-                for (Vec3 jomlVector : jomlVectors) {
-                    if (PressurizedMain.AirPockets.get(i).contains(jomlVector)) {
-                        return true;
-                    }
-                }
-            }
-        } catch (IndexOutOfBoundsException e) {
-            System.out.println("womp");
-        }
-        return false;
-    }
-
     @Inject(method = "isInWater", at = @At("HEAD"), cancellable = true)
-    private void goog(CallbackInfoReturnable<Boolean> cir) {
+    private void InjectIsInWater(CallbackInfoReturnable<Boolean> cir) {
         if (ModList.get().isLoaded("valkyrienskies")) {
-            Vec3 jomlVector1 = new Vec3(pressurized$self().getX(), pressurized$self().getY(), pressurized$self().getZ());
-            Vec3 jomlVector2 = new Vec3(
-                    pressurized$self().getX(),
-                    pressurized$self().getEyeY() - (double) 0.11111111F,
-                    pressurized$self().getZ()
-            );
+            Vec3 jomlVector1 = pressurized$self().position();
 
             ArrayList<Vec3> jomlVectors = new ArrayList<>();
-            jomlVectors.add(jomlVector1);
-            jomlVectors.add(jomlVector2);
 
-            if (pressurized$AirpocketOverride(jomlVectors)) {
+            jomlVectors.add(VSCompat.WorldToValkShip(pressurized$self().level(), jomlVector1));
+
+            if (VSCompat.IsInAirpocket(jomlVectors, pressurized$self().level())) {
                 cir.setReturnValue(false);
             }
         }
@@ -76,12 +55,13 @@ public abstract class Entitymixin {
             );
 
             ArrayList<Vec3> jomlVectors = new ArrayList<>();
-            jomlVectors.add(jomlVector1);
 
-            if (pressurized$AirpocketOverride(jomlVectors)) {
+            jomlVectors.add(VSCompat.WorldToValkShip(instance, jomlVector1));
+
+            if (VSCompat.IsInAirpocket(jomlVectors, pressurized$self().level())) {
                 return Fluids.EMPTY.defaultFluidState();
             }
         }
-        return pressurized$self().level().getFluidState(pressurized$self().blockPosition());
+        return pressurized$self().level().getFluidState(BlockPos.containing(pressurized$self().getEyePosition()));
     }
 }

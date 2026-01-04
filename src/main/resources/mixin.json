@@ -1,14 +1,14 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "net.dawn.Pressurized.mixin",
+  "package": "net.dawn.pressurized.mixin",
   "compatibilityLevel": "JAVA_17",
-  "refmap": "Pressurized.refmap.json",
+  "refmap": "pressurized.refmap.json",
   "mixins": [
     "Entitymixin",
-    "Levelmixin",
     "LivingEntityAccessor",
-    "LivingEntitymixin"
+    "LivingEntitymixin",
+    "LocalPlayerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

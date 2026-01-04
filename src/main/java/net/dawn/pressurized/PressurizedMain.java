@@ -1,4 +1,4 @@
-package net.dawn.Pressurized;
+package net.dawn.pressurized;
 
 //TODO: SERVER-HOSTING EDGECASE: someetimes the player doesnt take Pressure damage nor have any Pressure camera visuals and can be fixed by rejoining.
 
@@ -21,22 +21,17 @@ package net.dawn.Pressurized;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
-import com.mojang.logging.LogUtils;
-import net.dawn.Pressurized.Client.ClientConfigs;
-import net.dawn.Pressurized.Client.PressurizedHudOverlay;
-import net.dawn.Pressurized.Network.*;
+import net.dawn.pressurized.Client.ClientConfigs;
+import net.dawn.pressurized.Client.PressurizedHudOverlay;
+import net.dawn.pressurized.Network.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Vec3i;
-import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.level.ClipContext;
@@ -54,6 +49,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
@@ -65,26 +61,20 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Math;
-import org.joml.Vector3f;
-import org.joml.primitives.AABBic;
-import org.slf4j.Logger;
-import org.stringtemplate.v4.ST;
-import org.valkyrienskies.core.api.ships.Ship;
-import org.valkyrienskies.core.impl.shadow.Ai;
-import org.valkyrienskies.mod.common.VSGameUtilsKt;
 
-import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static net.dawn.Pressurized.BlocksResistanceData.*;
-import static net.dawn.Pressurized.PressurizedMain.ClientModEvents.*;
+import static net.dawn.pressurized.BlocksResistanceData.*;
+import static net.dawn.pressurized.PressurizedMain.ClientModEvents.*;
+import static net.dawn.pressurized.VSCompat.*;
 
 @Mod(PressurizedMain.MODID)
 public class PressurizedMain {
-    private PressurizedHudOverlay HudOverlay;
     public static final String MODID = "pressurized";
-    private static final Logger LOGGER = LogUtils.getLogger();
+
+    private PressurizedHudOverlay HudOverlay;
+
     static HashMap<String, Integer> BlocksPressureResistance = new HashMap<>();
     public static final HashMap<Integer, Map.Entry<BlockPos, Integer>> CrushedBlocks = new HashMap<>();
     public static final HashMap<Entity, Integer> EntitiesDepth = new HashMap<>();
@@ -93,11 +83,11 @@ public class PressurizedMain {
     static final Map<BlockPos, HashMap<Thread, Boolean>> DestroyThreads = new HashMap<>();
     static final ArrayList<Integer> RemovalCollection = new ArrayList<>();
 
-    public static final ArrayList<AABB> AirPockets = new ArrayList<>();
-
     static int ServerTicks = 0;
 
-    public PressurizedMain() {
+    public static final boolean DevMode = false;
+
+    public PressurizedMain(FMLJavaModLoadingContext context) {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         MinecraftForge.EVENT_BUS.register(this);
 
@@ -107,7 +97,6 @@ public class PressurizedMain {
         modEventBus.addListener(this::RegisterGui);
 
         modEventBus.addListener(this::clientSetup);
-        //modEventBus.addListener(this::ServerSetup);
 
         Networking.register();
         ModSounds.Register(modEventBus);
@@ -159,30 +148,27 @@ public class PressurizedMain {
         event.registerAboveAll("idk", PressurizedHudOverlay.PressurizedHUD);
         HudOverlay = new PressurizedHudOverlay();
         HudOverlay.initOverlays(event);
-        
-        //event.registerAbove(VanillaGuiOverlay.VIGNETTE.id(), PressurizedMain.MODID.concat(".pressurized_overlay"), PressurizedHudOverlay::RenderPressurized);
     }
 
     public static double getBodyPressure() {
         return BodyPressure;
-    };
+    }
 
     public static double getDepth() {
         return Depth;
-    };
+    }
     public static Boolean getPressureImmunity() {
         return PressureImmunity;
-    };
+    }
 
     public static double getCrushDepth() {
         return CrushDepth;
-    };
+    }
     public static void setDepth(int Value) {
         Depth = Value;
-    };
+    }
 
     public static void BlockScan(BlockPos blockPos, ServerLevel level) { // i geneuinely hate this code and needs a lot of cleaning
-
         HashMap<Integer, BlockPos> DistancePos = BlockposDepth(blockPos, level);
         int BlockDepth = 0;
 
@@ -207,13 +193,7 @@ public class PressurizedMain {
                 Resistance += (BlocksPressureResistance.get(LowerBlockName));
                 LowerBlockPos = LowerBlockPos.below();
                 LowerBlockName = Objects.requireNonNull(Objects.requireNonNull(ForgeRegistries.BLOCKS.getKey(level.getBlockState(LowerBlockPos).getBlock())).getPath());
-
-                //should i delete these disabled lines aswell???
-                //  if (depth*CommonConfigs.CrushDepthMultiplier.get() > -Resistance) {
-                //        break;
-                //   }
-
-            } // adds crush resistance of the blocks below the crushed block (blockPos variable)
+            }
 
             if (BlockDepth * ServerConfigs.CrushDepthMultiplier.get() >= Resistance) {
 
@@ -395,6 +375,20 @@ public class PressurizedMain {
     @SubscribeEvent
     public void PRLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         EntitiesDepth.put(event.getEntity(), 0);
+
+
+        if (ModList.get().isLoaded("valkyrienskies")) {
+            int i = 0;
+            while (i < AirPockets.size()) {
+                AABB Airpocket = AirPockets.get(i);
+
+                BlockPos Min = new BlockPos((int) Airpocket.minX, (int) Airpocket.minY, (int) Airpocket.minZ);
+                BlockPos Max = new BlockPos((int) Airpocket.maxX, (int) Airpocket.maxY, (int) Airpocket.maxZ);
+
+                Networking.CHANNEL6.send(PacketDistributor.ALL.noArg(), new UpdateAP(i, Min, Max));
+                i++;
+            }
+        }
     }
 
 
@@ -403,255 +397,33 @@ public class PressurizedMain {
         EntitiesDepth.remove(event.getEntity());
 
         //if (Minecraft.getInstance().isSingleplayer()) {
+        if (ModList.get().isLoaded("valkyrienskies")) {
             AirPockets.clear(); //TODO: remove this later
-        Wagoo = false; //TODO: remove this later
+        }
+        VSCompat.Debounce = false; //TODO: remove this later
         //}
     }
 
-    private ArrayList<ArrayList<BlockPos>> ProcessSmth(Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> j, ServerPlayer player, BlockPos FixedStart, BlockPos FixedEnd) {
-
-        ArrayList<ArrayList<BlockPos>> o = j.getKey();
-        ArrayList<BlockPos> idk = o.get(j.getValue());
-        
-        BlockPos Start = FixedStart;
-        BlockPos End = FixedEnd;
-        ArrayList<BlockPos> erm = new ArrayList<>();
-
-        if (FixedStart == null) {
-            int i = 0;
-            while (i < idk.size()) {
-                BlockPos blockPos = idk.get(i);
-                i++;
-
-                if (!player.serverLevel().getBlockState(blockPos).isAir()) {continue;}
-
-                if (player.serverLevel().getBlockState(blockPos.north()).isAir()) {continue;}
-                if (player.serverLevel().getBlockState(blockPos.west()).isAir()) {continue;}
-
-                if (Start == null || (Start.getX()+Start.getZ()) > (blockPos.getX()+blockPos.getZ())) {
-                    Start = blockPos;
-                }
-            }
-        }
-
-        o.set(j.getValue(), new ArrayList<>());
-        if (Start == null) {return o;}
-
-        int i = 0;
-        while (i < idk.size()) {
-            BlockPos blockPos = idk.get(i);
-            i++;
-
-            if (!player.serverLevel().getBlockState(blockPos).isAir()) {continue;}
-
-            if (FixedStart == null) {
-                if (player.serverLevel().getBlockState(blockPos.south()).isAir()) {continue;}
-                if (player.serverLevel().getBlockState(blockPos.east()).isAir()) {continue;}
-            }
-
-            if (End == null || (End.getX()+Start.getZ()) < (blockPos.getX()+blockPos.getZ())) {
-                Vec3 Min = new Vec3(Start.getX(), Start.getY(), Start.getZ());
-                Vec3 Max = new Vec3(blockPos.getX(), blockPos.getY(), blockPos.getZ());
-
-                boolean JA = false;
-                for (double x = Min.x; x < Max.x; x++) {
-                    for (double z = Min.z; z < Max.z; z++) {
-                        BlockPos currentPos = new BlockPos((int) x, blockPos.getY(), (int) z);
-                        BlockState blockState = Minecraft.getInstance().level.getBlockState(currentPos);
-                        erm.add(currentPos);
-
-                        if (!blockState.isAir()) { //if there's a block inside the AABB that's not air
-
-                            if (FixedStart == null) { // i really need to come up with better naming ngl...
-                                int ij = 0;
-                                ArrayList<BlockPos> n = new ArrayList<>();
-                                while (ij < idk.size()) {
-                                    BlockPos MEOW = idk.get(ij);
-                                    ij++;
-
-                                    boolean g = true;
-                                    for (BlockPos u : erm) {
-                                        if (MEOW.equals(u)) {
-                                            g = false;
-                                            break;
-                                        }
-                                    }
-
-                                    if (g) {
-                                        n.add(MEOW);
-                                    }
-                                }
-                                o.set(j.getValue(), n);
-
-                                Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> entry = Map.entry(o, j.getValue());
-                                ProcessSmth(entry, player, Start, null);
-                            }
-                            JA = true;
-                            break;
-                        }
-                    }
-                }
-                if (!JA) {
-                    erm.clear();
-                    End = blockPos;
-                }
-            }
-        }
-
-        o.set(j.getValue(), new ArrayList<>());
-        if (End == null) {return o;}
-
-        int OMG = j.getValue()+1;
-        {
-            BlockPos AboveStart = Start.above();
-            BlockPos AboveEnd = End.above();
-
-            boolean A = !player.serverLevel().getBlockState(AboveStart.north()).isAir();
-            boolean B = !player.serverLevel().getBlockState(AboveStart.west()).isAir();
-
-            boolean C = !player.serverLevel().getBlockState(AboveEnd.south()).isAir();
-            boolean D = !player.serverLevel().getBlockState(AboveEnd.east()).isAir();
-
-            if (FixedStart != null) {
-                A = true;
-                B = true;
-                //C = true;
-                //D = true;
-            }
-
-            while (A && B && C && D) {
-                o.set(OMG, new ArrayList<>());
-                OMG++;
-
-                End = AboveEnd;
-
-                AboveStart = AboveStart.above();
-                AboveEnd = AboveEnd.above();
-
-                A = !player.serverLevel().getBlockState(AboveStart.north()).isAir();
-                B = !player.serverLevel().getBlockState(AboveStart.west()).isAir();
-
-                C = !player.serverLevel().getBlockState(AboveEnd.south()).isAir();
-                D = !player.serverLevel().getBlockState(AboveEnd.east()).isAir();
-            }
-        }
-
-        Vec3 AirBlockStart = VSCompat.TEST(
-                Objects.requireNonNull(Minecraft.getInstance().getSingleplayerServer()).overworld(),
-                Start
-        );
-
-        Vec3 AirBlockEnd = VSCompat.TEST(
-                Minecraft.getInstance().getSingleplayerServer().overworld(),
-                End
-        );
-
-        //        Vec3 AirBlockStart = Start.getCenter();
-        //        Vec3 AirBlockEnd = End.getCenter();
-
-        Vec3 Min = new Vec3(
-                AirBlockStart.x()-.5,
-                AirBlockStart.y()-.5,
-                AirBlockStart.z()-.5
-        );
-
-        Vec3 Max = new Vec3(
-                AirBlockEnd.x()+.5,
-                AirBlockEnd.y()+.5,
-                AirBlockEnd.z()+.5
-        );
-
-        AABB AirPocket = new AABB(Min, Max);
-
-        //        double minX1 = AirPocket.minX;
-        //        double minY1 = AirPocket.minY;
-        //        double minZ1 = AirPocket.minZ;
-        //        double maxX1 = AirPocket.maxX;
-        //        double maxY1 = AirPocket.maxY;
-        //        double maxZ1 = AirPocket.maxZ;
-        //
-        //        for (double x = minX1; x <= maxX1; x++) {
-        //            for (double y = minY1; y <= maxY1; y++) {
-        //                for (double z = minZ1; z <= maxZ1; z++) {
-        //                    idk.remove(new BlockPos((int) x, (int) y, (int) z));
-        //                }
-        //            }
-        //        }
-        //for (BlockPos goog : idk) {
-        //    for  (BlockPos icant : erm) {
-        //        if (goog.equals(icant)) {
-        //            idk.remove(goog);
-        //        }
-        //    }
-        //}
-
-        System.out.println(AirPocket);
-
-        AirPockets.add(AirPockets.size(), AirPocket); // obvious memory leak
-
-        idk.clear(); // shouldnt be doing this but am testing
-        return o;
-    }
-
-    boolean Wagoo = false;
-    int DELAY = 0;
+    int Delay = 0;
 
     @SubscribeEvent
     public void OnSTick(TickEvent.ServerTickEvent event) {
         if (!event.phase.equals(TickEvent.Phase.END)) {return;}
-        if (ServerTicks < ServerConfigs.BlockScanRate.get()) {ServerTicks++;return;}
-        DELAY++;
+        Delay++;
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
-            if (ModList.get().isLoaded("valkyrienskies") && !Wagoo && DELAY >= 20) {
-                PressurizedMain.AirPockets.clear();
-                //Wagoo = true;
+            if (ModList.get().isLoaded("valkyrienskies")) {
 
-                for (Ship ship : VSGameUtilsKt.getAllShips(Minecraft.getInstance().level)) {
-                    ArrayList<ArrayList<BlockPos>> idk = new ArrayList<>();
-
-                    AABBic shipAABB = ship.getShipAABB();
-                    assert shipAABB != null;
-
-                    for (int y = shipAABB.minY(); y < shipAABB.maxY(); y++) {
-                        final ArrayList<BlockPos> meow = new ArrayList<>();
-
-                        for (int x = shipAABB.minX(); x < shipAABB.maxX(); x++) {
-                            for (int z = shipAABB.minZ(); z < shipAABB.maxZ(); z++) {
-
-                                BlockPos currentPos = new BlockPos(x, y, z);
-                                BlockState blockState = player.serverLevel().getBlockState(currentPos);
-
-                                if (blockState.isAir()) { //NOTE: there could be an issue where isAir returns true despite there being a solid block because it checks too early while the solid block is not registered.
-                                    meow.add(currentPos);
-                                }
-                            }
-                        }
-                        idk.add(meow);
-                    }
-
-                    int i = 0;
-                    while (i < idk.size()) {
-                        Map.Entry<ArrayList<ArrayList<BlockPos>>, Integer> entry = Map.entry(idk, i);
-                        idk = ProcessSmth(
-                                entry,
-                                player,
-                                null,
-                                null
-                        ); //building airpockets
-
-                        try {
-                            if (idk.get(i).isEmpty()) {
-                                i++;
-                            }
-                        } catch (IndexOutOfBoundsException e) {
-                            System.out.println("BLYAAAAAT");
-                        }
-                    }
-                    idk.clear();
-                } //stop iterating through VS ships
-                System.out.println(AirPockets);
+            if (!VSCompat.Debounce && Delay >= 20) {
+                VSCompat.RegisterShipAirpockets(player.serverLevel());
             }
+            if (VSCompat.UpdateAirpockets) {
+                VSCompat.RegisterShipAirpockets(player.serverLevel());
+                VSCompat.UpdateAirpockets = false;
+            }
+        }
+
+            if (ServerTicks < ServerConfigs.BlockScanRate.get()) {ServerTicks++;return;}
 
             //NOTICE: the reason why were getting the Depth on the server instead of client is because valk skies
             //VSGameUtilsKt.getShipObjectManagingPos needs ServerLevel
@@ -670,7 +442,7 @@ public class PressurizedMain {
                     for (int z = -radius; z <= radius; z++) {
                         BlockPos blockPos = center.offset(x, y, z);
                         if (blockPos.distSqr(center) <= radius * radius) {
-                            if (!player.serverLevel().getBlockState(blockPos).liquid()) {
+                            if (player.serverLevel().getFluidState(blockPos).isEmpty()) {
                                 BlockScan(blockPos, player.serverLevel()); // this is the cool part
                             }
                         }
@@ -683,10 +455,115 @@ public class PressurizedMain {
 
     @SubscribeEvent
     public void BlockDestroyed(BlockEvent.BreakEvent event) {
-        for (Map.Entry<Integer, Map.Entry<BlockPos, Integer>> BlockMap : CrushedBlocks.entrySet()) {
-            Map.Entry<BlockPos, Integer> entry = BlockMap.getValue();
-            if (entry.getKey().equals(event.getPos())) {
-                RemovalCollection.add(BlockMap.getKey());
+        if (!event.getLevel().isClientSide()) {
+            if (ModList.get().isLoaded("valkyrienskies")) {
+
+                ArrayList<BlockPos> TempExcludedBlocks = new ArrayList<>();
+
+                TempExcludedBlocks.add(event.getPos());
+                TempExcludedBlocks.add(event.getPos().north());
+                TempExcludedBlocks.add(event.getPos().east());
+                TempExcludedBlocks.add(event.getPos().south());
+                TempExcludedBlocks.add(event.getPos().west());
+
+                ArrayList<AABB> ExcludedAirpockets = new ArrayList<>();
+                for (int b = AirPockets.size() - 1; b >= 0; b--) {
+                    AABB Airpocket = AirPockets.get(b);
+                    boolean Exclude = false;
+
+                    if (ExcludedAirpockets.contains(Airpocket)) {continue;}
+
+                    for (int i = TempExcludedBlocks.size() - 1; i >= 0; i--) {
+                        if (Airpocket.contains(TempExcludedBlocks.get(i).getCenter())) {
+                            Exclude = true;
+                        }
+                    }
+
+                    if (Exclude) {
+                        ExcludedAirpockets.add(Airpocket);
+
+                        for (double x = Airpocket.minX; x < Airpocket.maxX; x++) {
+                            for (double y = Airpocket.minY; y < Airpocket.maxY; y++) {
+                                for (double z = Airpocket.minZ; z < Airpocket.maxZ; z++) {
+                                    BlockPos block = new BlockPos((int) x, (int) y, (int) z);
+                                    TempExcludedBlocks.add(block);
+                                    b = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+                for (AABB Airpocket : ExcludedAirpockets) {
+                    AirPocketsVisuals.remove(Airpocket);
+                    AirPockets.remove(Airpocket);
+                }
+
+                TempExcludedBlocks.clear();
+
+                VSCompat.UpdateAirpockets = true;
+            }
+
+            for (Map.Entry<Integer, Map.Entry<BlockPos, Integer>> BlockMap : CrushedBlocks.entrySet()) {
+                Map.Entry<BlockPos, Integer> entry = BlockMap.getValue();
+                if (entry.getKey().equals(event.getPos())) {
+                    RemovalCollection.add(BlockMap.getKey());
+                }
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public void BlockPlaced(BlockEvent.EntityPlaceEvent event) {
+        if (!event.getLevel().isClientSide() && event.getPhase() == EventPriority.NORMAL) {
+            if (ModList.get().isLoaded("valkyrienskies")) {
+
+                ArrayList<BlockPos> TempExcludedBlocks = new ArrayList<>();
+
+                TempExcludedBlocks.add(event.getPos());
+                TempExcludedBlocks.add(event.getPos().north());
+                TempExcludedBlocks.add(event.getPos().east());
+                TempExcludedBlocks.add(event.getPos().south());
+                TempExcludedBlocks.add(event.getPos().west());
+
+                ArrayList<AABB> ExcludedAirpockets = new ArrayList<>();
+                for (int b = AirPockets.size() - 1; b >= 0; b--) {
+                    AABB Airpocket = AirPockets.get(b);
+                    if (ExcludedAirpockets.contains(Airpocket)) {continue;}
+
+                    boolean Exclude = false;
+
+                    for (int i = TempExcludedBlocks.size() - 1; i >= 0; i--) {
+                        if (Airpocket.contains(TempExcludedBlocks.get(i).getCenter())) {
+                            Exclude = true;
+                        }
+                    }
+
+                    if (Exclude) {
+                        ExcludedAirpockets.add(Airpocket);
+
+                        for (double x = Airpocket.minX; x < Airpocket.maxX; x++) {
+                            for (double y = Airpocket.minY; y < Airpocket.maxY; y++) {
+                                for (double z = Airpocket.minZ; z < Airpocket.maxZ; z++) {
+                                    BlockPos block = new BlockPos((int) x, (int) y, (int) z);
+                                    TempExcludedBlocks.add(block);
+
+                                    TempExcludedBlocks.add(block.north());
+                                    TempExcludedBlocks.add(block.east());
+                                    TempExcludedBlocks.add(block.south());
+                                    TempExcludedBlocks.add(block.west());
+                                    b = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+                for (AABB Airpocket : ExcludedAirpockets) {
+                    AirPocketsVisuals.remove(Airpocket);
+                    AirPockets.remove(Airpocket);
+                }
+
+                TempExcludedBlocks.clear();
+                VSCompat.RegisterShipAirpockets((ServerLevel) event.getLevel());
             }
         }
     }
@@ -715,21 +592,18 @@ public class PressurizedMain {
         //NOTICE: It seems like all other event listeners dont work without subscribing to this one below.
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event)
-        {
-            // Some client setup code
-            LOGGER.info("HELLO FROM CLIENT SETUP");
-            LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
-        }
+        {}
 
         //i should probably keep it client-sided for break texture rendering
         //because last time i tried handling it on the server using level.destroyBlockProgress, the client rendered it a bit inconsistently...
+
         @SubscribeEvent
         public static void OnRLSEvent(RenderLevelStageEvent event) {
             if (Minecraft.getInstance().player == null || event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
                 return;
             }
 
-            { //Airpockets highlight debugger start
+            if (DevMode) { //Airpockets highlight debugger start
                 Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
 
                 PoseStack poseStack = event.getPoseStack();
@@ -742,17 +616,25 @@ public class PressurizedMain {
 
                 RenderSystem.setShader(GameRenderer::getPositionColorShader);
 
+                if (ModList.get().isLoaded("valkyrienskies")) {
                 try {
-                    for (int i = PressurizedMain.AirPockets.size() - 1; i >= 0; i--) {
-                        Debugger.renderLineBox(
-                                poseStack,
-                                consumer,
-                                PressurizedMain.AirPockets.get(i) //TODO java.lang.IndexOutOfBoundsException: Index 3 out of bounds for length 0
-                        );
+                    for (int i = AirPockets.size() - 1; i >= 0; i--) {
+                        AABB Airpocket = AirPockets.get(i);
+                        if (Airpocket != null && AirPocketsVisuals.get(Airpocket) != null) {
+                            Debugger.renderLineBox(
+                                    poseStack,
+                                    consumer,
+                                    VSCompat.AirPocketsVisuals.get(Airpocket)
+                            );
+
+                        }
                     }
-                } finally {
+
+                } catch(IndexOutOfBoundsException exception) {
                     bufferSource.endBatch(RenderType.lines());
                 }
+                }
+                bufferSource.endBatch(RenderType.lines());
 
                 poseStack.popPose();
             }//Airpockets highlight debugger end
@@ -782,6 +664,7 @@ public class PressurizedMain {
             Player = Minecraft.getInstance().player;
             if (Player == null) {return;}
             //NOTE: this entire if statement is for Crushed Blocks damage sfx, buh
+
             if (!HullDamageThread) {
                 // if (!player.isUnderWater() || CrushedBlocks.isEmpty()) {return;}
                 HullDamageThread = true;
