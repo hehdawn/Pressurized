@@ -1,8 +1,8 @@
-package net.dawn.Pressurized.Client;
+package net.dawn.pressurized.Client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
-import net.dawn.Pressurized.PressurizedMain;
+import net.dawn.pressurized.PressurizedMain;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;

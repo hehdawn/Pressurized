@@ -1,4 +1,4 @@
-package net.dawn.Pressurized;
+package net.dawn.pressurized;
 
 public class BlocksResistanceData {
     public static final String[] StoneBlocks = {

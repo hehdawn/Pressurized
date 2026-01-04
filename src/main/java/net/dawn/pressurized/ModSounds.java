@@ -1,4 +1,4 @@
-package net.dawn.Pressurized;
+package net.dawn.pressurized;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;

@@ -1,7 +1,6 @@
-package net.dawn.Pressurized.Client;
+package net.dawn.pressurized.Client;
 
 import net.minecraftforge.common.ForgeConfigSpec;
-import java.util.*;
 
 public class ClientConfigs {
     public static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();

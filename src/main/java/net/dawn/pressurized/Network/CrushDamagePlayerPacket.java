@@ -1,7 +1,7 @@
-package net.dawn.Pressurized.Network;
+package net.dawn.pressurized.Network;
 
-import net.dawn.Pressurized.ModSounds;
-import net.dawn.Pressurized.PressurizedDamageSource;
+import net.dawn.pressurized.ModSounds;
+import net.dawn.pressurized.PressurizedDamageSource;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;

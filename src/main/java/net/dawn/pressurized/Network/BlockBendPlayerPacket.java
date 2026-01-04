@@ -1,7 +1,6 @@
-package net.dawn.Pressurized.Network;
+package net.dawn.pressurized.Network;
 
-import net.dawn.Pressurized.ModSounds;
-import net.dawn.Pressurized.PressurizedDamageSource;
+import net.dawn.pressurized.ModSounds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
