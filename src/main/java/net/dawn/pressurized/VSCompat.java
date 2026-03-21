@@ -1,6 +1,10 @@
 package net.dawn.pressurized;
 
+import com.mojang.blaze3d.vertex.*;
+import com.mojang.math.Axis;
 import net.dawn.pressurized.Network.UpdateAP;
+import net.dawn.pressurized.Network.UpdateCBArray;
+import net.dawn.pressurized.Network.UpdateCBTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
@@ -8,18 +12,29 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.network.PacketDistributor;
+import net.minecraftforge.server.ServerLifecycleHooks;
+import org.joml.Matrix4f;
 import org.joml.Vector3d;
+import org.joml.Vector3dc;
 import org.joml.primitives.AABBic;
+import org.valkyrienskies.core.api.events.CollisionEvent;
+import org.valkyrienskies.core.api.ships.LoadedServerShip;
 import org.valkyrienskies.core.api.ships.Ship;
+import org.valkyrienskies.mod.api.ValkyrienSkies;
 import org.valkyrienskies.mod.common.VSGameUtilsKt;
 import org.valkyrienskies.mod.common.util.VectorConversionsMCKt;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static net.dawn.pressurized.PressurizedMain.CrushedBlocks;
 
 public class VSCompat {
-    static final HashMap<AABB, Ship> AirpocketToShip = new HashMap<>();
+    public static final HashMap<AABB, Ship> AirpocketToShip = new HashMap<>();
 
     public static final ArrayList<AABB> AirPockets = new ArrayList<>();
     public static final HashMap<AABB, AABB> AirPocketsVisuals = new HashMap<>();
@@ -49,6 +64,20 @@ public class VSCompat {
     }
     //^by brickyboy124
     //thx!!!!
+
+    public static Vec3 valkShipToWorld(Ship ship, Vec3 shipPos) {
+        // Convert the blockpos into something VS can use
+        Vector3d vecShipPos = VectorConversionsMCKt.toJOML(shipPos);
+
+        // Move that blockpos ship -> world
+        Vector3d vecWorldPos = ship.getTransform().getShipToWorld().transformPosition(vecShipPos, new Vector3d());
+
+        // Back to a Minecraft format
+        Vec3 mcVecWorldPos = VectorConversionsMCKt.toMinecraft(vecWorldPos);
+
+        // Back to a BlockPos (optional, but probably easier to integrate into your existing code)
+        return mcVecWorldPos;
+    }
 
     public static AABB ShipyardAirpocketToWorld(Level level, AABB Airpocket) {
         Ship ship = AirpocketToShip.get(Airpocket);
@@ -83,6 +112,14 @@ public class VSCompat {
         Vector3d vecShipPos = VectorConversionsMCKt.toJOML(Pos);
 
         Vector3d vecWorldPos = SourceShip.getTransform().getWorldToShip().transformPosition(vecShipPos, new Vector3d());
+
+        return VectorConversionsMCKt.toMinecraft(vecWorldPos);
+    }
+
+    public static Vec3 WorldToValkShip(Vec3 Pos, Ship Ship) {
+        Vector3d vecShipPos = VectorConversionsMCKt.toJOML(Pos);
+
+        Vector3d vecWorldPos = Ship.getTransform().getWorldToShip().transformPosition(vecShipPos, new Vector3d());
 
         return VectorConversionsMCKt.toMinecraft(vecWorldPos);
     }
@@ -144,6 +181,25 @@ public class VSCompat {
                         Airpocket = AirPockets.get(i);
                         break;
                     }
+                }
+            }
+
+            if (Airpocket != null) {
+                return CheckAbovePocket(Airpocket, level);
+            }
+
+        } catch (IndexOutOfBoundsException ignored) {}
+
+        return false;
+    }
+
+    public static boolean IsInAirpocket(Vec3 jomlVector, Level level) {
+        try {
+            AABB Airpocket = null;
+            for (int i = AirPockets.size() - 1; i >= 0; i--) {
+                if (AirPockets.get(i) != null && AirPockets.get(i).contains(jomlVector)) {
+                    Airpocket = AirPockets.get(i);
+                    break;
                 }
             }
 
@@ -442,4 +498,197 @@ public class VSCompat {
             } catch (ConcurrentModificationException ignored) {}
         }
     }
+
+    static final HashMap<Ship, Vector3dc> SpeedTracker = new HashMap<>();
+    static final Vector3d idfk = new Vector3d();
+    static final HashMap<Long, Long> ShipStress = new HashMap<>();
+
+    public static void CollisionDamage(CollisionEvent event) {
+        ServerLevel level = null;
+        for (ServerLevel serverLevel : ServerLifecycleHooks.getCurrentServer().getAllLevels()) {
+            if (VSGameUtilsKt.getDimensionId(serverLevel).equals(event.getDimensionId())) {
+                level = serverLevel;
+                break;
+            }
+        }
+
+        final ServerLevel serverLevel = level;
+
+        if (level != null && ShipStress.containsKey(event.getShipIdA())) {
+            event.getContactPoints().forEach(collisionContactPoint -> {
+                Ship ship = ValkyrienSkies.getShipById(serverLevel, event.getShipIdA());
+                if (ship == null) {return;}
+
+                Vec3 vec3 = VSCompat.WorldToValkShip(
+                        VectorConversionsMCKt.toMinecraft(
+                                collisionContactPoint.getPosition()
+                        ),
+                        ship
+                );
+
+                BlockPos blockPos = BlockPos.containing(vec3);
+                long StressResistance = (long) (serverLevel.getBlockState(blockPos).getBlock().getExplosionResistance()*100000);
+
+                if (ShipStress.get(event.getShipIdA()) > StressResistance && StressResistance >= 1) {
+
+                    //                            BlockHitResult context = serverLevel.clip(new ClipContext(
+                    //                                    VectorConversionsMCKt.toMinecraft(
+                    //                                            collisionContactPoint.getPosition()
+                    //                                    ),
+                    //                                    vec3.add(Velocity),
+                    //                                    ClipContext.Block.COLLIDER,
+                    //                                    ClipContext.Fluid.NONE,
+                    //                                    null
+                    //                            ));
+                    //
+                    //if (context.getType() == HitResult.Type.MISS) {return;}
+
+                    int Progress = java.lang.Math.toIntExact((ShipStress.get(event.getShipIdA()) / StressResistance));
+
+                    boolean Found = false;
+                    for (Map.Entry<Integer, Map.Entry<BlockPos, Integer>> BlockMap : CrushedBlocks.entrySet()) {
+                        if (BlockMap.getValue().getKey().equals(blockPos)) {
+                            Progress += BlockMap.getValue().getValue();
+                            Map.Entry<BlockPos, Integer> entry = BlockMap.getValue();
+                            BlockMap.setValue(Map.entry(entry.getKey(), Progress));
+                            Found = true;
+                            break;
+                        }
+                    }
+
+                    if (!Found) {
+                        Map.Entry<BlockPos, Integer> entry = Map.entry(blockPos, 0);
+
+                        CrushedBlocks.put(CrushedBlocks.size()+1, entry);
+                        Networking.CHANNEL3.send(
+                                PacketDistributor.ALL.noArg(),
+                                new UpdateCBArray(CrushedBlocks.size(), blockPos)
+                        );
+                    }
+                    if (Progress > 7) {
+                        serverLevel.destroyBlock(blockPos, true);
+                        serverLevel.addDestroyBlockEffect(blockPos, serverLevel.getBlockState(blockPos));
+                    } else {
+                        Networking.CHANNEL4.send(
+                                PacketDistributor.ALL.noArg(),
+                                new UpdateCBTexture(
+                                        blockPos,
+                                        Progress
+                                )
+                        );
+                    }
+                }
+            });
+        }
+    }
+
+    public static void drawMaskBox(PoseStack poseStack, AABB box, double CamX, double CamY, double CamZ) {
+        Ship ship = VSCompat.AirpocketToShip.get(box);
+        if (ship == null) return; {}
+
+        poseStack.pushPose();
+        Vec3 Cam = new Vec3(CamX, CamY, CamZ);
+        Cam = VSCompat.WorldToValkShip(Cam, ship);
+
+        double centerX = box.getCenter().x;
+        double centerY = box.getCenter().y;
+        double centerZ = box.getCenter().z;
+
+        double dx = centerX - Cam.x;
+        double dy = centerY - Cam.y;
+        double dz = centerZ - Cam.z;
+
+        Vector3d YXZVec3 = ship.getTransform().getRotation().getEulerAnglesYXZ(new Vector3d());
+
+        float pitchDegrees = (float) Math.toDegrees(YXZVec3.x());
+        float yawDegrees = (float) Math.toDegrees(YXZVec3.y());
+        float rollDegrees = (float) Math.toDegrees(YXZVec3.z());
+
+        poseStack.mulPose(Axis.YP.rotationDegrees(yawDegrees));
+        poseStack.mulPose(Axis.XP.rotationDegrees(pitchDegrees));
+        poseStack.mulPose(Axis.ZP.rotationDegrees(rollDegrees));
+        poseStack.translate(dx, dy, dz);
+
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder bufferbuilder = tesselator.getBuilder();
+        Matrix4f matrix = poseStack.last().pose();
+
+        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION);
+
+        float halfX = (float) box.getXsize() / 2f;
+        float ySize = (float) box.getYsize()-0.5f;
+        float halfZ = (float) box.getZsize() / 2f;
+
+        bufferbuilder.vertex(matrix, -halfX, ySize, -halfZ).endVertex();
+        bufferbuilder.vertex(matrix, -halfX, ySize, halfZ).endVertex();
+        bufferbuilder.vertex(matrix, halfX, ySize, halfZ).endVertex();
+        bufferbuilder.vertex(matrix, halfX, ySize, -halfZ).endVertex();
+
+        ySize = ySize-0.2f;
+
+        bufferbuilder.vertex(matrix, -halfX, ySize, -halfZ).endVertex();
+        bufferbuilder.vertex(matrix, halfX, ySize, -halfZ).endVertex();
+        bufferbuilder.vertex(matrix, halfX, ySize, halfZ).endVertex();
+        bufferbuilder.vertex(matrix, -halfX, ySize, halfZ).endVertex();
+
+        tesselator.end();
+        poseStack.popPose();
+    }
+
+    private static ConcurrentHashMap<Integer, CollisionEvent> fish = new ConcurrentHashMap<>();
+
+    public static void CommonSetup(FMLCommonSetupEvent event) {
+        ValkyrienSkies.api().getCollisionPersistEvent().on(collisionPersistentEvent -> {
+            if (ServerConfigs.CollisionDamage.get()) {
+                fish.put(fish.size()+1, collisionPersistentEvent);
+            }
+        });
+    }
+
+    public static void OnSTick(TickEvent.ServerTickEvent event) {
+        Iterator<Map.Entry<Integer, CollisionEvent>> it = fish.entrySet().iterator();
+
+        while (it.hasNext()) {
+            Map.Entry<Integer, CollisionEvent> entry = it.next();
+            CollisionEvent collisionEvent = entry.getValue();
+
+            VSCompat.CollisionDamage(collisionEvent);
+
+            it.remove();
+        }
+        // for (CollisionEvent collisionEvent:fish) {
+
+        // }
+
+        for (ServerLevel level: event.getServer().getAllLevels()) {
+            for (Ship ship: VSGameUtilsKt.getAllShips(level)) {
+                LoadedServerShip ServerShip = VSGameUtilsKt.getLoadedShipManagingPos(
+                        level,
+                        ship.getTransform().getPositionInShip()
+                );
+                if (ServerShip == null) {continue;}
+
+                Vector3dc CurrentVelocity = ship.getVelocity();
+
+                if (SpeedTracker.get(ship) != null) {
+                    Vector3dc PreviousVelocity = SpeedTracker.get(ship);
+                    Vector3d deltaV = CurrentVelocity.sub(PreviousVelocity, idfk);
+
+                    double deltaVAmount = deltaV.length();
+                    double acceleration = deltaVAmount / 0.05;
+                    double gForce = acceleration / 9.80665;
+
+                    double Mass = ServerShip.getInertiaData().getMass();
+                    long totalForce = (long) (Mass * (gForce * 9.80665));
+
+                    SpeedTracker.replace(ship, CurrentVelocity);
+                    ShipStress.put(ship.getId(), totalForce);
+
+                } else {
+                    SpeedTracker.put(ship, CurrentVelocity);
+                }
+            }
+        }
+    }
+
 }

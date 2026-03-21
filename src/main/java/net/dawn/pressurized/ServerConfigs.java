@@ -21,6 +21,7 @@ public class ServerConfigs {
     public static final ForgeConfigSpec.BooleanValue PressureDamage;
     public static final ForgeConfigSpec.BooleanValue ResurfaceDamage;
     public static final ForgeConfigSpec.BooleanValue Airpockets;
+    public static final ForgeConfigSpec.BooleanValue CollisionDamage;
 
     public static final ForgeConfigSpec.ConfigValue<Double> CrushDepthMultiplier;
     public static final ForgeConfigSpec.ConfigValue<Integer> BlockScanRate;
@@ -54,11 +55,12 @@ public class ServerConfigs {
         PressureDamage = BUILDER.define("Diving damage", true);
         ResurfaceDamage = BUILDER.define("Resurfacing damage", true);
         Airpockets = BUILDER.define("Valkyrien Skies Airpockets", true);
+        CollisionDamage = BUILDER.define("Experimental ship collision damage", false);
 
         CrushDepthMultiplier = BUILDER.define("Crush Depth Multiplier", (double) 1);
         BlockScanRate = BUILDER.define("Block Scan After X Server Ticks", 5);
-        BlockScanRadius = BUILDER.define("Block Scan Radius", 16);
-        MaxBlocksDestructionCapacity = BUILDER.define("Max amount of blocks to be stored for breaking by water pressure", 100);
+        BlockScanRadius = BUILDER.define("Block Scan Radius", 12);
+        MaxBlocksDestructionCapacity = BUILDER.define("Max amount of blocks to be stored for breaking", 64);
 
         BUILDER.pop();
         SPEC = BUILDER.build();

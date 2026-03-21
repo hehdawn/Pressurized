@@ -1,5 +1,6 @@
 package net.dawn.pressurized.Network;
 
+import net.dawn.pressurized.Client.PressurizedClient;
 import net.dawn.pressurized.PressurizedMain;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
@@ -29,7 +30,7 @@ public class SendPlayerDepth {
     public static void handle(SendPlayerDepth msg, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             synchronized (PressurizedMain.CrushedBlocks) {
-                PressurizedMain.setDepth(msg.Depth);
+                PressurizedClient.Depth = msg.Depth;
             }
         });
         ctx.get().setPacketHandled(true);

@@ -6,6 +6,7 @@ import net.dawn.pressurized.PressurizedMain;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -16,8 +17,26 @@ import net.minecraftforge.client.gui.overlay.IGuiOverlay;
 import org.joml.Matrix4f;
 
 @OnlyIn(Dist.CLIENT)
-public class PressurizedHudOverlay {
+public class PressurizedClient {
     static Minecraft MC = Minecraft.getInstance();
+    public static net.minecraft.world.entity.player.Player Player = Minecraft.getInstance().player;
+    public static double BodyPressure = 0;
+    public static double PressureBuildup = 0;
+    public static double MountPressureBuildup = 0;
+    public static double CrushDepth = -100;
+    public static double Depth = 0;
+    public static int CamShake = 1;
+
+    public static Boolean OverPressured = false;
+    public static Boolean PressureImmunity = false;
+    public static Boolean CrushImmunity = false;
+
+    public static Boolean ValidHelmet = false;
+    public static Boolean ValidChestPlate = false;
+    public static Boolean ValidLeggings = false;
+    public static Boolean ValidBoots = false;
+
+    public static Boolean HullDamageThread = false;
     //    public static final ResourceLocation PressurizedOverlay = ResourceLocation.fromNamespaceAndPath(
     //            PressurizedMain.MODID,
     //            "textures/pressurized.png");
@@ -47,12 +66,18 @@ public class PressurizedHudOverlay {
         if (MC.player == null)
             return;
 
-        float Transparency  = 0;
+        float Transparency;
 
         if (ClientConfigs.PressureOverlay.get() & !MC.player.isCreative() & MC.player.isUnderWater()) {
-            if (!PressurizedMain.getPressureImmunity() || MC.player.getY() < PressurizedMain.getCrushDepth()) {
-                float X = (float) (PressurizedMain.getBodyPressure()-PressurizedMain.getDepth())/10;
-                Transparency  = Clamp(X*X, 0, 1);
+            if (!PressureImmunity || MC.player.getY() < CrushDepth) {
+                float X = (float) (BodyPressure-Depth)/10;
+                if (!OverPressured) {
+                    Transparency = 0;
+                } else if (Depth <= CrushDepth) {
+                    Transparency = 1;
+                } else {
+                    Transparency  = Clamp(X*X, 0, 1);
+                }
 
                 RenderSystem.setShaderTexture(0, PressurizedOverlay);
                 renderFullscreen(guiGraphics.pose(), scw, sch, 100, 58, 0, 0, 100, 58, Transparency);
