@@ -49,6 +49,13 @@ public class Networking {
             PROTOCOL_VERSION::equals
     );
 
+    public static final SimpleChannel CHANNEL7 = NetworkRegistry.newSimpleChannel(
+            new ResourceLocation(PressurizedMain.MODID, "test5"),
+            () -> PROTOCOL_VERSION,
+            PROTOCOL_VERSION::equals,
+            PROTOCOL_VERSION::equals
+    );
+
     public static void register() {
         int id = 0;
         CHANNEL1.registerMessage(id++, BaroDamagePlayerPacket.class, BaroDamagePlayerPacket::encode, BaroDamagePlayerPacket::decode, BaroDamagePlayerPacket::handle);
@@ -57,5 +64,6 @@ public class Networking {
         CHANNEL4.registerMessage(id++, UpdateCBTexture.class, UpdateCBTexture::encode, UpdateCBTexture::decode, UpdateCBTexture::handle);
         CHANNEL5.registerMessage(id++, SendPlayerDepth.class, SendPlayerDepth::encode, SendPlayerDepth::decode, SendPlayerDepth::handle);
         CHANNEL6.registerMessage(id++, UpdateAP.class, UpdateAP::encode, UpdateAP::decode, UpdateAP::handle);
+        CHANNEL7.registerMessage(id++, BaroDamageBoatPacket.class, BaroDamageBoatPacket::encode, BaroDamageBoatPacket::decode, BaroDamageBoatPacket::handle);
     }
 }

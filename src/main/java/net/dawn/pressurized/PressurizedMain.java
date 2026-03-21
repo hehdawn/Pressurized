@@ -21,10 +21,12 @@ package net.dawn.pressurized;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import com.mojang.logging.LogUtils;
 import net.dawn.pressurized.Client.ClientConfigs;
-import net.dawn.pressurized.Client.PressurizedHudOverlay;
+import net.dawn.pressurized.Client.PressurizedClient;
 import net.dawn.pressurized.Network.*;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -46,6 +48,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.util.Lazy;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.level.BlockEvent;
@@ -57,26 +60,30 @@ import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Math;
+import org.slf4j.Logger;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static net.dawn.pressurized.BlocksResistanceData.*;
-import static net.dawn.pressurized.PressurizedMain.ClientModEvents.*;
 import static net.dawn.pressurized.VSCompat.*;
 
 @Mod(PressurizedMain.MODID)
 public class PressurizedMain {
     public static final String MODID = "pressurized";
 
-    private PressurizedHudOverlay HudOverlay;
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    private PressurizedClient HudOverlay;
 
     static HashMap<String, Integer> BlocksPressureResistance = new HashMap<>();
-    public static final HashMap<Integer, Map.Entry<BlockPos, Integer>> CrushedBlocks = new HashMap<>();
+    public static final ConcurrentHashMap<Integer, Map.Entry<BlockPos, Integer>> CrushedBlocks = new ConcurrentHashMap<>();
     public static final HashMap<Entity, Integer> EntitiesDepth = new HashMap<>();
 
     static final Collection<BlockPos> SkipThread = new CopyOnWriteArrayList<>();
@@ -89,14 +96,18 @@ public class PressurizedMain {
 
     public PressurizedMain(FMLJavaModLoadingContext context) {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        modEventBus.addListener(this::CommonSetup);
+
+        modEventBus.addListener(this::RegisterGui);
+        modEventBus.addListener(this::clientSetup);
+
         MinecraftForge.EVENT_BUS.register(this);
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ServerConfigs.SPEC, "pressurized-Server.toml");
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ClientConfigs.SPEC, "pressurized-Client.toml");
 
-        modEventBus.addListener(this::RegisterGui);
-
-        modEventBus.addListener(this::clientSetup);
+        System.setProperty("forge.enableStencil", "true");
 
         Networking.register();
         ModSounds.Register(modEventBus);
@@ -142,30 +153,21 @@ public class PressurizedMain {
 
     private void clientSetup(final FMLClientSetupEvent event)
     {
-        HudOverlay = new PressurizedHudOverlay();
+        HudOverlay = new PressurizedClient();
     }
+
+    private void CommonSetup(final FMLCommonSetupEvent event) {
+        event.enqueueWork(() -> {
+            if (ModList.get().isLoaded("valkyrienskies")) {
+                VSCompat.CommonSetup(event);
+            }
+        });
+    }
+
     public void RegisterGui(RegisterGuiOverlaysEvent event) {
-        event.registerAboveAll("idk", PressurizedHudOverlay.PressurizedHUD);
-        HudOverlay = new PressurizedHudOverlay();
+        event.registerAboveAll("idk", PressurizedClient.PressurizedHUD);
+        HudOverlay = new PressurizedClient();
         HudOverlay.initOverlays(event);
-    }
-
-    public static double getBodyPressure() {
-        return BodyPressure;
-    }
-
-    public static double getDepth() {
-        return Depth;
-    }
-    public static Boolean getPressureImmunity() {
-        return PressureImmunity;
-    }
-
-    public static double getCrushDepth() {
-        return CrushDepth;
-    }
-    public static void setDepth(int Value) {
-        Depth = Value;
     }
 
     public static void BlockScan(BlockPos blockPos, ServerLevel level) { // i geneuinely hate this code and needs a lot of cleaning
@@ -268,9 +270,11 @@ public class PressurizedMain {
                                         level.destroyBlock(key, true);
                                         level.addDestroyBlockEffect(key, level.getBlockState(key));
                                     } else {
-                                        Networking.CHANNEL4.send(PacketDistributor.ALL.noArg(), new UpdateCBTexture(entry.getKey(), entry.getValue()+1));
+                                        Networking.CHANNEL4.send(
+                                                PacketDistributor.ALL.noArg(),
+                                                new UpdateCBTexture(entry.getKey(), entry.getValue()+1)
+                                        );
                                         BlockMap.setValue(Map.entry(entry.getKey(), entry.getValue()+1));
-
                                     }
                                     synchronized (SkipThread) {
                                         SkipThread.remove(key);
@@ -349,7 +353,7 @@ public class PressurizedMain {
 
         return DistancePos;
     }
-    public static int EntityDepth(BlockPos blockPos, ServerLevel level) {
+    public static int EntityDepth(BlockPos blockPos, ClientLevel level) {
         if (ModList.get().isLoaded("valkyrienskies")) {
             BlockPos meow = VSCompat.valkShipToWorld(level, blockPos);
 
@@ -399,8 +403,8 @@ public class PressurizedMain {
         //if (Minecraft.getInstance().isSingleplayer()) {
         if (ModList.get().isLoaded("valkyrienskies")) {
             AirPockets.clear(); //TODO: remove this later
+            VSCompat.Debounce = false; //TODO: remove this later
         }
-        VSCompat.Debounce = false; //TODO: remove this later
         //}
     }
 
@@ -408,32 +412,40 @@ public class PressurizedMain {
 
     @SubscribeEvent
     public void OnSTick(TickEvent.ServerTickEvent event) {
+        if (event.phase == TickEvent.Phase.START) {
+            if (ModList.get().isLoaded("valkyrienskies")) {
+                VSCompat.OnSTick(event);
+            }
+        }
+
         if (!event.phase.equals(TickEvent.Phase.END)) {return;}
         Delay++;
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
             if (ModList.get().isLoaded("valkyrienskies")) {
 
-            if (!VSCompat.Debounce && Delay >= 20) {
-                VSCompat.RegisterShipAirpockets(player.serverLevel());
+                if (!VSCompat.Debounce && Delay >= 20) {
+                    VSCompat.RegisterShipAirpockets(player.serverLevel());
+                }
+                if (VSCompat.UpdateAirpockets) {
+                    VSCompat.RegisterShipAirpockets(player.serverLevel());
+                    VSCompat.UpdateAirpockets = false;
+                }
             }
-            if (VSCompat.UpdateAirpockets) {
-                VSCompat.RegisterShipAirpockets(player.serverLevel());
-                VSCompat.UpdateAirpockets = false;
-            }
-        }
 
             if (ServerTicks < ServerConfigs.BlockScanRate.get()) {ServerTicks++;return;}
 
             //NOTICE: the reason why were getting the Depth on the server instead of client is because valk skies
             //VSGameUtilsKt.getShipObjectManagingPos needs ServerLevel
-            for (Map.Entry<Entity, Integer> Entry : EntitiesDepth.entrySet()) {
-                if (player.getId() == Entry.getKey().getId()) {
-                    int Depth = EntityDepth(player.getOnPos(), player.serverLevel());
-                    Entry.setValue((int) (Entry.getKey().getY() - Depth));
-                    Networking.CHANNEL5.send(PacketDistributor.PLAYER.with(() -> player), new SendPlayerDepth(Entry.getValue()));
-                }
-            }
+            //actually that may be false
+
+            //            for (Map.Entry<Entity, Integer> Entry : EntitiesDepth.entrySet()) {
+            //                if (player.getId() == Entry.getKey().getId()) {
+            //                    int Depth = EntityDepth(player.getOnPos(), player.serverLevel());
+            //                    Entry.setValue((int) (Entry.getKey().getY() - Depth));
+            //                    Networking.CHANNEL5.send(PacketDistributor.PLAYER.with(() -> player), new SendPlayerDepth(Entry.getValue()));
+            //                }
+            //            }
 
             int radius = ServerConfigs.BlockScanRadius.get();
             BlockPos center = player.getOnPos();
@@ -569,25 +581,7 @@ public class PressurizedMain {
     }
 
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
-    public static class ClientModEvents
-    {
-        static net.minecraft.world.entity.player.Player Player = Minecraft.getInstance().player;
-        static double BodyPressure = 0;
-        static double PressureBuildup = 0;
-        static double CrushDepth = -100;
-        static double Depth = 0;
-        static int CamShake = 1;
-
-        static Boolean OverPressured = false;
-        static Boolean PressureImmunity = false;
-        static Boolean CrushImmunity = false;
-
-        static Boolean ValidHelmet = false;
-        static Boolean ValidChestPlate = false;
-        static Boolean ValidLeggings = false;
-        static Boolean ValidBoots = false;
-
-        static Boolean HullDamageThread = false;
+    public static class ClientModEvents {
 
         //NOTICE: It seems like all other event listeners dont work without subscribing to this one below.
         @SubscribeEvent
@@ -617,22 +611,22 @@ public class PressurizedMain {
                 RenderSystem.setShader(GameRenderer::getPositionColorShader);
 
                 if (ModList.get().isLoaded("valkyrienskies")) {
-                try {
-                    for (int i = AirPockets.size() - 1; i >= 0; i--) {
-                        AABB Airpocket = AirPockets.get(i);
-                        if (Airpocket != null && AirPocketsVisuals.get(Airpocket) != null) {
-                            Debugger.renderLineBox(
-                                    poseStack,
-                                    consumer,
-                                    VSCompat.AirPocketsVisuals.get(Airpocket)
-                            );
+                    try {
+                        for (int i = AirPockets.size() - 1; i >= 0; i--) {
+                            AABB Airpocket = AirPockets.get(i);
+                            if (Airpocket != null && AirPocketsVisuals.get(Airpocket) != null) {
+                                Debugger.renderLineBox(
+                                        poseStack,
+                                        consumer,
+                                        VSCompat.AirPocketsVisuals.get(Airpocket)
+                                );
 
+                            }
                         }
-                    }
 
-                } catch(IndexOutOfBoundsException exception) {
-                    bufferSource.endBatch(RenderType.lines());
-                }
+                    } catch(IndexOutOfBoundsException exception) {
+                        bufferSource.endBatch(RenderType.lines());
+                    }
                 }
                 bufferSource.endBatch(RenderType.lines());
 
@@ -640,7 +634,11 @@ public class PressurizedMain {
             }//Airpockets highlight debugger end
 
             for (Map.Entry<Integer, Map.Entry<BlockPos, Integer>> BlockMap : PressurizedMain.CrushedBlocks.entrySet()) {
-                event.getLevelRenderer().destroyBlockProgress(BlockMap.getKey(), BlockMap.getValue().getKey(), BlockMap.getValue().getValue());
+                event.getLevelRenderer().destroyBlockProgress(
+                        BlockMap.getKey(),
+                        BlockMap.getValue().getKey(),
+                        BlockMap.getValue().getValue()
+                );
                 //NOTICE: First parameter of destroyBlockProgress is for the id of the entity, this may result in issues.
             }
         }
@@ -659,23 +657,36 @@ public class PressurizedMain {
             LoggedIn = false;
         }
 
+        //@SubscribeEvent
+        //public static void GotOn(EntityMountEvent event) {
+        //    PressurizedClient.Mounted = event.isMounting();
+        //    if (event.isMounting()) {
+        //PressurizedClient.PressureImmunity = true;
+        //PressurizedClient.CrushImmunity = true;
+        //    } else if (event.isDismounting()) {
+        //PressurizedClient.PressureImmunity = false;
+        //PressurizedClient.CrushImmunity = true;
+        //    }
+        //}
+
         @SubscribeEvent
         public static void OnPTick(TickEvent.ClientTickEvent event) {
-            Player = Minecraft.getInstance().player;
-            if (Player == null) {return;}
+            PressurizedClient.Player = Minecraft.getInstance().player;
+            if (PressurizedClient.Player == null) {return;}
+            PressurizedClient.Depth = PressurizedClient.Player.getY() - EntityDepth(PressurizedClient.Player.getOnPos(), Minecraft.getInstance().level);
             //NOTE: this entire if statement is for Crushed Blocks damage sfx, buh
 
-            if (!HullDamageThread) {
+            if (!PressurizedClient.HullDamageThread) {
                 // if (!player.isUnderWater() || CrushedBlocks.isEmpty()) {return;}
-                HullDamageThread = true;
+                PressurizedClient.HullDamageThread = true;
                 new Thread(() -> {
                     try {
                         Thread.sleep(5000);
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }
-                    HullDamageThread = false;
-                    if (!Player.isUnderWater() || CrushedBlocks.isEmpty()) {
+                    PressurizedClient.HullDamageThread = false;
+                    if (!PressurizedClient.Player.isUnderWater() || CrushedBlocks.isEmpty()) {
                         return;
                     }
 
@@ -698,9 +709,9 @@ public class PressurizedMain {
                     BlockPos blockPos = new BlockPos(X, Y, Z);
                     BlockState Blockstate = Minecraft.getInstance().player.level().getBlockState(blockPos);
 
-                    double deltaX = Player.getOnPos().getX() - blockPos.getX();
-                    double deltaY = Player.getOnPos().getY() - blockPos.getY();
-                    double deltaZ = Player.getOnPos().getZ() - blockPos.getZ();
+                    double deltaX = PressurizedClient.Player.getOnPos().getX() - blockPos.getX();
+                    double deltaY = PressurizedClient.Player.getOnPos().getY() - blockPos.getY();
+                    double deltaZ = PressurizedClient.Player.getOnPos().getZ() - blockPos.getZ();
 
                     double Distance = Math.sqrt((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ));
                     String Name = Objects.requireNonNull(ForgeRegistries.BLOCKS.getKey(Blockstate.getBlock())).getPath();
@@ -723,118 +734,160 @@ public class PressurizedMain {
             }
 
             new Thread(() -> {
-                if (PressureImmunity) {
-                    BodyPressure = Depth;
+                if (PressurizedClient.PressureImmunity) {
+                    PressurizedClient.BodyPressure = PressurizedClient.Depth;
                 } else {
-                    if (BodyPressure > Depth) {
-                        BodyPressure -= .075;
-                    } else if (BodyPressure < Depth) {
-                        BodyPressure += .075;
-                    } else if (BodyPressure - Depth >= .025) {
-                        BodyPressure = Depth;
+                    if (PressurizedClient.BodyPressure > PressurizedClient.Depth) {
+                        PressurizedClient.BodyPressure -= .075;
+                    } else if (PressurizedClient.BodyPressure < PressurizedClient.Depth) {
+                        PressurizedClient.BodyPressure += .075;
+                    } else if (PressurizedClient.BodyPressure - PressurizedClient.Depth >= .025) {
+                        PressurizedClient.BodyPressure = PressurizedClient.Depth;
                     }
                 }
 
-                if (CrushImmunity || Depth > CrushDepth) {
-                    if (PressureBuildup > 0) {
-                        PressureBuildup -= .1;
-                        if (PressureBuildup < 0) {
-                            PressureBuildup = 0;
+                if (PressurizedClient.CrushImmunity || PressurizedClient.Depth > PressurizedClient.CrushDepth) {
+                    if (PressurizedClient.PressureBuildup > 0) {
+                        PressurizedClient.PressureBuildup -= .1;
+                        if (PressurizedClient.PressureBuildup < 0) {
+                            PressurizedClient.PressureBuildup = 0;
                         }
                     }
                 }
             }).start();
 
-            if (Player.isUnderWater() & !Player.isCreative()) {
-                String Helmet = Player.getItemBySlot(EquipmentSlot.HEAD).getItem().toString();
-                String ChestPlate = Player.getItemBySlot(EquipmentSlot.CHEST).getItem().toString();
-                String Leggings = Player.getItemBySlot(EquipmentSlot.LEGS).getHoverName().getString();
-                String Boots = Player.getItemBySlot(EquipmentSlot.FEET).getHoverName().getString();
+            if (PressurizedClient.Player.isUnderWater() & !PressurizedClient.Player.isCreative()) {
+                String Helmet = PressurizedClient.Player.getItemBySlot(EquipmentSlot.HEAD).getItem().toString();
+                String ChestPlate = PressurizedClient.Player.getItemBySlot(EquipmentSlot.CHEST).getItem().toString();
+                String Leggings = PressurizedClient.Player.getItemBySlot(EquipmentSlot.LEGS).getHoverName().getString();
+                String Boots = PressurizedClient.Player.getItemBySlot(EquipmentSlot.FEET).getHoverName().getString();
 
                 if (!ServerConfigs.HelmetRequired.get()) {
-                    ValidHelmet = true;
+                    PressurizedClient.ValidHelmet = true;
                 } else {
                     for (String Gear : ServerConfigs.ValidHelmets.get()) {
-                        ValidHelmet = (Helmet.equals(Gear));
+                        PressurizedClient.ValidHelmet = (Helmet.equals(Gear));
                     }
                 }
 
                 if (!ServerConfigs.ChestPlateRequired.get()) {
-                    ValidChestPlate = true;
+                    PressurizedClient.ValidChestPlate = true;
                 } else  {
                     for (String Gear : ServerConfigs.ValidChestPlates.get()) {
-                        ValidChestPlate = (ChestPlate.equals(Gear));
+                        PressurizedClient.ValidChestPlate = (ChestPlate.equals(Gear));
                     }
                 }
 
                 if (!ServerConfigs.LeggingsRequired.get()) {
-                    ValidLeggings = true;
+                    PressurizedClient.ValidLeggings = true;
                 } else {
                     for (String Gear : ServerConfigs.ValidLeggings.get()) {
-                        ValidLeggings = (Leggings.equals(Gear));
+                        PressurizedClient.ValidLeggings = (Leggings.equals(Gear));
                     }
                 }
 
                 if (!ServerConfigs.BootsRequired.get()) {
-                    ValidBoots = true;
+                    PressurizedClient.ValidBoots = true;
                 } else {
                     for (String Gear : ServerConfigs.ValidBoots.get()) {
-                        ValidBoots = (Boots.equals(Gear));
+                        PressurizedClient.ValidBoots = (Boots.equals(Gear));
                     }
                 }
 
-                if (ValidHelmet & ValidChestPlate & ValidLeggings & ValidBoots) {
-                    PressureImmunity = true;
-                    CrushDepth = -400 * ServerConfigs.CrushDepthMultiplier.get();
+                if (PressurizedClient.ValidHelmet & PressurizedClient.ValidChestPlate & PressurizedClient.ValidLeggings & PressurizedClient.ValidBoots) {
+                    PressurizedClient.PressureImmunity = true;
+                    PressurizedClient.CrushDepth = -400 * ServerConfigs.CrushDepthMultiplier.get();
                 } else {
-                    PressureImmunity = false;
-                    CrushDepth = -100 * ServerConfigs.CrushDepthMultiplier.get();
+                    PressurizedClient.PressureImmunity = false;
+                    PressurizedClient.CrushDepth = -100 * ServerConfigs.CrushDepthMultiplier.get();
                 }
 
-                if (!CrushImmunity & Depth <= CrushDepth || !PressureImmunity & (Depth - BodyPressure <= -5 & ServerConfigs.PressureDamage.get() || Depth - BodyPressure >= 5 & ServerConfigs.ResurfaceDamage.get())) {
-                    OverPressured = true;
-                    if (Player.hurtTime <= 0) {
-                        if (Depth - BodyPressure < 0 & Player.getDeltaMovement().y < -.15) {// damage when descending too fast
+                if (PressurizedClient.Player.getVehicle() != null) {
+                    PressurizedClient.PressureImmunity = true;
+                    PressurizedClient.CrushImmunity = true;
+
+                    if (PressurizedClient.Depth <= -120 * ServerConfigs.CrushDepthMultiplier.get()) {
+                        PressurizedClient.MountPressureBuildup += 0.025;
+                        if (PressurizedClient.MountPressureBuildup >= 1 & PressurizedClient.Player.isAlive()) {
+                            Networking.CHANNEL7.sendToServer(new BaroDamageBoatPacket(3));
+                            //PressurizedClient.Player.getVehicle().kill();//(PressurizedClient.Player.level().damageSources().drown(), 15);
+                            PressurizedClient.MountPressureBuildup = 0;
+                        }
+                    }
+                } else {
+                    PressurizedClient.CrushImmunity = false;
+                    if (PressurizedClient.MountPressureBuildup > 0) {
+                        PressurizedClient.MountPressureBuildup -= 0.025;
+                    }
+                }
+
+                if (!PressurizedClient.CrushImmunity & PressurizedClient.Depth <= PressurizedClient.CrushDepth || !PressurizedClient.PressureImmunity && (PressurizedClient.Depth - PressurizedClient.BodyPressure <= -5 & ServerConfigs.PressureDamage.get() || PressurizedClient.Depth - PressurizedClient.BodyPressure >= 5 & ServerConfigs.ResurfaceDamage.get())) {
+                    PressurizedClient.OverPressured = true;
+                    if (PressurizedClient.Player.hurtTime <= 0) {
+                        if (PressurizedClient.Depth - PressurizedClient.BodyPressure < 0 & PressurizedClient.Player.getDeltaMovement().y < -.15) {// damage when descending too fast
                             Minecraft.getInstance().getSoundManager().stop(ModSounds.BAROTRAUMA.getId(), SoundSource.AMBIENT);
-                            Player.level().playLocalSound(Player.getX(), Player.getY(), Player.getZ(), ModSounds.BAROTRAUMA.get(), SoundSource.AMBIENT, (float) (1f * (Math.abs(Depth - BodyPressure))), 1f, false);
-                            if (Player.isAlive()) {
+                            PressurizedClient.Player.level().playLocalSound(PressurizedClient.Player.getX(), PressurizedClient.Player.getY(), PressurizedClient.Player.getZ(), ModSounds.BAROTRAUMA.get(), SoundSource.AMBIENT, (float) (1f * (Math.abs(PressurizedClient.Depth - PressurizedClient.BodyPressure))), 1f, false);
+                            if (PressurizedClient.Player.isAlive()) {
+                                //if (PressurizedClient.Player.getVehicle() != null) {
+                                //    PressurizedClient.Player.getVehicle().hurt(null, 2);
+                                //} else {
                                 Networking.CHANNEL1.sendToServer(new BaroDamagePlayerPacket(2));
+                                // }
                             }
-                        } else if (Depth - BodyPressure > 0  & Player.getDeltaMovement().y > .15) {// damage when ascending too fast
+                        } else if (PressurizedClient.Depth - PressurizedClient.BodyPressure > 0  & PressurizedClient.Player.getDeltaMovement().y > .15) {// damage when ascending too fast
                             Minecraft.getInstance().getSoundManager().stop(ModSounds.BAROTRAUMA.getId(), SoundSource.AMBIENT);
-                            Player.level().playLocalSound(Player.getX(), Player.getY(), Player.getZ(), ModSounds.BAROTRAUMA.get(), SoundSource.AMBIENT, (float) (1f * (Math.abs(Depth - BodyPressure))), 1f, false);
-                            if (Player.isAlive()) {
+                            if (PressurizedClient.Player.isAlive()) {
+                                // if (PressurizedClient.Player.getVehicle() != null) {
+                                //     PressurizedClient.Player.getVehicle().hurt(null, 2);
+                                // } else {
                                 Networking.CHANNEL1.sendToServer(new BaroDamagePlayerPacket(2));
+                                PressurizedClient.Player.level().playLocalSound(
+                                        PressurizedClient.Player.getX(),
+                                        PressurizedClient.Player.getY(),
+                                        PressurizedClient.Player.getZ(),
+                                        ModSounds.BAROTRAUMA.get(),
+                                        SoundSource.AMBIENT,
+                                        (float) (1f * (Math.abs(PressurizedClient.Depth - PressurizedClient.BodyPressure))),
+                                        1f,
+                                        false
+                                );
+                                // }
+                                //Networking.CHANNEL1.sendToServer(new BaroDamagePlayerPacket(2));
                             }
                         }
                     }
 
-                    if (!CrushImmunity & Depth <= CrushDepth) {
-                        PressureBuildup += 0.025;
+                    if (!PressurizedClient.CrushImmunity & PressurizedClient.Depth <= PressurizedClient.CrushDepth) {
+                        PressurizedClient.PressureBuildup += 0.025;
                     }
                 } else {
-                    OverPressured = false;
+                    PressurizedClient.OverPressured = false;
                 }
-                if (PressureBuildup >= 5 & Player.isAlive()) {
+                if (PressurizedClient.PressureBuildup >= 5 & PressurizedClient.Player.isAlive()) {
+                    //if (PressurizedClient.Player.getVehicle() != null) {
+                    //    PressurizedClient.Player.getVehicle().hurt(null, 2);
+                    //   PressurizedClient.PressureBui
+                    //} else {
                     Networking.CHANNEL2.sendToServer(new CrushDamagePlayerPacket(100));
+                    // }
                 }
             } else {
-                OverPressured = false;
+                PressurizedClient.OverPressured = false;
             }
         }
 
         @SubscribeEvent
         public static void OnCTick(TickEvent.RenderTickEvent event) {
-            if (event.phase == TickEvent.Phase.START & Player != null) {
-                if (!LoggedIn || Player.isCreative()) {return;}
+            if (event.phase == TickEvent.Phase.START & PressurizedClient.Player != null) {
+                if (!LoggedIn || PressurizedClient.Player.isCreative()) {return;}
 
-                if (OverPressured & !Minecraft.getInstance().isPaused() & Minecraft.getInstance().cameraEntity != null) {
-                    if (CamShake >= 1) {
-                        CamShake = (int) (-1 * (Math.abs(Depth - BodyPressure)));
+                if (PressurizedClient.OverPressured & !Minecraft.getInstance().isPaused() & Minecraft.getInstance().cameraEntity != null) {
+                    if (PressurizedClient.CamShake >= 1) {
+                        PressurizedClient.CamShake = (int) (-1 * (Math.abs(PressurizedClient.Depth - PressurizedClient.BodyPressure)));
                     } else {
-                        CamShake = (int) (1 * (Math.abs(Depth - BodyPressure)));
+                        PressurizedClient.CamShake = (int) (1 * (Math.abs(PressurizedClient.Depth - PressurizedClient.BodyPressure)));
                     }
-                    Minecraft.getInstance().cameraEntity.setYRot(Player.getYHeadRot() + (float) CamShake / 20);
+                    Minecraft.getInstance().cameraEntity.setYRot(PressurizedClient.Player.getYHeadRot() + (float) PressurizedClient.CamShake / 20);
                 }
             }
         }
@@ -842,11 +895,11 @@ public class PressurizedMain {
         @SubscribeEvent
         public static void OnLeave(PlayerEvent.PlayerLoggedOutEvent event) {
             if (event.getEntity() == Minecraft.getInstance().player) {
-                OverPressured = false;
-                ValidHelmet = false;
-                ValidChestPlate = false;
-                ValidLeggings = false;
-                ValidBoots = false;
+                PressurizedClient.OverPressured = false;
+                PressurizedClient.ValidHelmet = false;
+                PressurizedClient.ValidChestPlate = false;
+                PressurizedClient.ValidLeggings = false;
+                PressurizedClient.ValidBoots = false;
             }
         }
 
@@ -854,9 +907,9 @@ public class PressurizedMain {
         public static void PRespawned(PlayerEvent.PlayerRespawnEvent event) {
             assert Minecraft.getInstance().player != null;
             if (Objects.equals(event.getEntity().getName().toString(), Minecraft.getInstance().player.getName().toString())) {
-                PressureBuildup = 0;
-                BodyPressure = 0;
-                OverPressured = false;
+                PressurizedClient.PressureBuildup = 0;
+                PressurizedClient.BodyPressure = 0;
+                PressurizedClient.OverPressured = false;
             }
         }
     }

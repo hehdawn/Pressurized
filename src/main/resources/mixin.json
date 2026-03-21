@@ -8,11 +8,13 @@
     "Entitymixin",
     "LivingEntityAccessor",
     "LivingEntitymixin",
-    "LocalPlayerMixin"
+    "LocalPlayerMixin",
+    "OverrideVS"
   ],
   "injectors": {
     "defaultRequire": 1
   },
   "client": [
+    "ShipWaterCulling"
   ]
 }
